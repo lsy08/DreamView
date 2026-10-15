@@ -1,0 +1,1259 @@
+<title>DreamView</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@500;700&display=swap">
+<style>
+/* Layout: app shell — top bar, sidebar library tree, content pane where each view scrolls on its own; photos stay the brightest thing on screen.
+   Dark first: a darkroom graphite with a muted safelight-amber accent. */
+:root {
+  --bg: #111214;
+  --surface: #17181b;
+  --raise: #1f2024;
+  --line: #2a2b30;
+  --fg: #ecebe7;
+  --muted: #9b9994;
+  --faint: #6c6b67;
+  --accent: #e2a35a;
+  --accent-ink: #1b1207;
+  --accent-soft: rgba(226,163,90,.14);
+  --shadow: 0 10px 30px rgba(0,0,0,.45);
+  --font-display: "Instrument Serif", "Noto Serif SC", "Songti SC", Georgia, serif;
+  --font-cjk-display: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --font-body: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+  --font-hand: "Ma Shan Zheng", "KaiTi", "STKaiti", cursive;
+  --r: 10px;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f3f3f1; --surface: #ffffff; --raise: #eaeae7; --line: #dcdcd8;
+    --fg: #1b1c1e; --muted: #5f5e5a; --faint: #8e8d89;
+    --accent: #a9621b; --accent-ink: #ffffff; --accent-soft: rgba(169,98,27,.12);
+    --shadow: 0 10px 30px rgba(30,25,15,.14);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f3f3f1; --surface: #ffffff; --raise: #eaeae7; --line: #dcdcd8;
+  --fg: #1b1c1e; --muted: #5f5e5a; --faint: #8e8d89;
+  --accent: #a9621b; --accent-ink: #ffffff; --accent-soft: rgba(169,98,27,.12);
+  --shadow: 0 10px 30px rgba(30,25,15,.14);
+  color-scheme: light;
+}
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.5; overflow: hidden; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.app { height: 100%; display: grid; grid-template-rows: auto 1fr auto; }
+
+/* ---------- top bar ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 20px; height: 58px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: var(--bg);
+}
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 25px; letter-spacing: .01em; white-space: nowrap; }
+.brand svg { width: 26px; height: 26px; color: var(--accent); }
+.menu-btn { display: none; }
+.tabs { display: flex; gap: 4px; }
+.tab { display: flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 8px; color: var(--muted); white-space: nowrap; }
+.tab:hover { color: var(--fg); background: var(--raise); }
+.tab[aria-current="true"] { color: var(--fg); background: var(--raise); box-shadow: inset 0 -2px 0 var(--accent); }
+.search { flex: 1; max-width: 420px; margin-left: auto; position: relative; }
+.search input { width: 100%; height: 36px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); padding: 0 14px 0 36px; outline: none; }
+.search input:focus { border-color: var(--accent); }
+.search svg { position: absolute; left: 12px; top: 9px; color: var(--faint); }
+.top-actions { display: flex; gap: 6px; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; min-width: 36px; padding: 0 10px; border-radius: 18px; color: var(--muted); border: 1px solid transparent; white-space: nowrap; }
+.icon-btn:hover { color: var(--fg); background: var(--raise); }
+.icon-btn.outline { border-color: var(--line); }
+
+/* ---------- shell ---------- */
+.shell { display: grid; grid-template-columns: 236px 1fr; min-height: 0; }
+.sidebar { border-right: 1px solid var(--line); overflow-y: auto; padding-block: 18px 24px; padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: 14px; display: flex; flex-direction: column; gap: 22px; background: var(--bg); }
+.side-group h4 { margin: 0 0 6px 10px; font-size: 11px; font-weight: 500; letter-spacing: .12em; color: var(--faint); text-transform: uppercase; }
+.side-item { width: 100%; display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; color: var(--muted); text-align: left; }
+.side-item:hover { background: var(--raise); color: var(--fg); }
+.side-item[aria-current="true"] { background: var(--accent-soft); color: var(--fg); }
+.side-item[aria-current="true"] svg { color: var(--accent); }
+.side-item .n { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
+.side-item .dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.folder { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; font-size: 12.5px; color: var(--muted); }
+.folder .p { font-family: var(--font-mono); font-size: 12px; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder .s { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--faint); }
+.pulse { width: 6px; height: 6px; border-radius: 50%; background: #5bbf7a; box-shadow: 0 0 0 3px rgba(91,191,122,.18); }
+.side-stats { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid var(--line); font-size: 12px; color: var(--faint); display: grid; gap: 4px; }
+.side-stats b { color: var(--fg); font-weight: 500; }
+
+.content { position: relative; min-height: 0; min-width: 0; overflow: hidden; }
+.view { height: 100%; overflow-y: auto; overflow-x: hidden; }
+
+/* ---------- library ---------- */
+#view-library { padding-block: 0 120px; padding-left: 24px; padding-right: max(48px, env(safe-area-inset-right, 0px)); }
+.lib-head { position: sticky; top: 0; z-index: 5; background: var(--bg); padding-block: 18px 12px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+.lib-title { min-width: 0; }
+.lib-title h1 { margin: 0; font-family: var(--font-cjk-display); font-weight: 700; font-size: 26px; line-height: 1.2; text-wrap: balance; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lib-title p { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
+.chip-x { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-body); font-size: 12px; font-weight: 400; padding: 3px 6px 3px 10px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); }
+.controls { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ctl { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 13px; white-space: nowrap; }
+.ctl:hover { color: var(--fg); }
+.ctl select { appearance: none; border: 0; background: transparent; color: var(--fg); padding-right: 14px; cursor: pointer; outline: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: right 4px top 55%, right 0 top 55%; background-size: 4px 4px; background-repeat: no-repeat; }
+.ctl select option { background: var(--surface); color: var(--fg); }
+.ctl input[type=range] { width: 84px; accent-color: var(--accent); }
+.ctl.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.badge { min-width: 18px; height: 18px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-size: 11px; display: inline-flex; align-items: center; justify-content: center; padding: 0 5px; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 14px 26px; padding: 14px 16px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+.f-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.f-row > span { font-size: 12px; color: var(--faint); margin-right: 4px; }
+.pill { height: 28px; padding: 0 11px; border-radius: 14px; border: 1px solid var(--line); font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.pill:hover { color: var(--fg); }
+.pill[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+.group { padding-top: 22px; }
+.g-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 10px; }
+.g-head h3 { margin: 0; font-family: var(--font-cjk-display); font-size: 18px; font-weight: 500; }
+.g-head .sub { color: var(--muted); font-size: 12.5px; }
+.g-head .cnt { color: var(--faint); font-size: 12px; }
+.g-sel { margin-left: auto; font-size: 12px; color: var(--faint); opacity: 0; transition: opacity .15s; }
+.group:hover .g-sel, body.selecting .g-sel { opacity: 1; }
+.g-sel:hover { color: var(--accent); }
+
+.grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.tile { position: relative; overflow: hidden; border-radius: 4px; background: var(--raise); cursor: zoom-in; flex: none; }
+.tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .25s ease, opacity .3s; }
+.tile:hover img { transform: scale(1.025); }
+.tile-ov { position: absolute; inset: auto 0 0 0; padding: 22px 10px 8px; display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; color: #fff; font-size: 11.5px;
+  background: linear-gradient(transparent, rgba(0,0,0,.62)); opacity: 0; transition: opacity .2s; pointer-events: none; }
+.tile:hover .tile-ov { opacity: 1; }
+.tile-ov .t-exif { font-family: var(--font-mono); font-size: 10.5px; opacity: .85; white-space: nowrap; }
+.tile-ov .t-loc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.t-fav { position: absolute; top: 7px; right: 8px; color: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+.t-fav svg { width: 15px; height: 15px; fill: currentColor; }
+.t-check { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.9); background: rgba(0,0,0,.25); display: none; align-items: center; justify-content: center; }
+.t-check svg { width: 14px; height: 14px; stroke: var(--accent-ink); stroke-width: 3; opacity: 0; }
+body.selecting .tile { cursor: pointer; }
+body.selecting .t-check { display: flex; }
+.tile.sel { background: var(--accent-soft); }
+.tile.sel img { transform: scale(.88); border-radius: 3px; }
+.tile.sel .t-check { background: var(--accent); border-color: var(--accent); }
+.tile.sel .t-check svg { opacity: 1; }
+.empty { padding: 80px 0; text-align: center; color: var(--muted); }
+
+.scrubber { position: absolute; top: 90px; bottom: 30px; right: max(6px, env(safe-area-inset-right, 0px)); width: 36px; display: flex; flex-direction: column; align-items: center; gap: 2px; z-index: 6; overflow: hidden; }
+.scrubber .yr { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); padding: 6px 0 2px; cursor: pointer; }
+.scrubber .mo { width: 100%; height: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; }
+.scrubber .mo::before { content: ""; width: 8px; height: 2px; border-radius: 1px; background: var(--line); transition: all .15s; }
+.scrubber .mo:hover::before { width: 16px; background: var(--muted); }
+.scrubber .mo.on::before { width: 18px; background: var(--accent); }
+.scrubber .mo:hover::after { content: attr(data-l); position: absolute; right: 34px; top: -4px; background: var(--fg); color: var(--bg); font-size: 11px; padding: 1px 8px; border-radius: 4px; white-space: nowrap; }
+
+/* ---------- selection bar ---------- */
+.selbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); z-index: 30; display: flex; align-items: center; gap: 6px; padding: 8px 8px 8px 18px; border-radius: 14px; background: var(--fg); color: var(--bg); box-shadow: var(--shadow); max-width: calc(100vw - 32px); flex-wrap: wrap; }
+.selbar .info { font-size: 13px; margin-right: 10px; white-space: nowrap; }
+.selbar .info b { font-family: var(--font-mono); }
+.selbar button { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; font-size: 13px; white-space: nowrap; }
+.selbar button:hover { background: rgba(127,127,127,.18); }
+.selbar .primary { background: var(--accent); color: var(--accent-ink); }
+.selbar .primary:hover { background: var(--accent); filter: brightness(1.08); }
+
+/* ---------- albums ---------- */
+#view-albums { padding-block: 24px 80px; padding-left: 28px; padding-right: max(28px, env(safe-area-inset-right, 0px)); }
+.sec-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }
+.sec-head h2 { margin: 0; font-family: var(--font-cjk-display); font-size: 22px; font-weight: 700; }
+.sec-head p { margin: 0; color: var(--muted); font-size: 12.5px; }
+.album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 22px; margin-bottom: 40px; }
+.album { text-align: left; display: grid; gap: 10px; }
+.album .cover { aspect-ratio: 4/3; max-width: 100%; display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; gap: 3px; border-radius: var(--r); overflow: hidden; background: var(--raise); }
+.album .cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s; }
+.album .cover img:first-child { grid-row: span 2; }
+.album:hover .cover img { transform: scale(1.03); }
+.album .t { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.album .t b { font-size: 15px; font-weight: 500; }
+.album .t span { font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
+.album .m { font-size: 12px; color: var(--muted); margin-top: -6px; }
+.smart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.smart { display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); text-align: left; }
+.smart:hover { border-color: var(--accent); }
+.smart img { width: 56px; height: 56px; border-radius: 6px; object-fit: cover; flex: none; }
+.smart b { display: block; font-weight: 500; }
+.smart code { font-family: var(--font-mono); font-size: 11.5px; color: var(--accent); }
+.smart .n { font-size: 12px; color: var(--faint); }
+
+/* ---------- showcase ---------- */
+#view-showcase { overflow: hidden; display: flex; flex-direction: column; background: var(--sc-bg); color: var(--sc-ink); transition: background .4s; }
+.sc-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-block: 14px; padding-left: 24px; padding-right: max(24px, env(safe-area-inset-right, 0px)); position: relative; z-index: 2; }
+.sc-ex { display: flex; gap: 6px; flex-wrap: wrap; }
+.sc-ex button { height: 30px; padding: 0 12px; border-radius: 15px; font-size: 13px; color: var(--sc-sub); border: 1px solid var(--sc-line); white-space: nowrap; }
+.sc-ex button[aria-pressed="true"] { background: var(--sc-ink); color: var(--sc-on); border-color: var(--sc-ink); }
+.seg { display: inline-flex; padding: 3px; border-radius: 10px; border: 1px solid var(--sc-line); margin-left: auto; }
+.seg button { height: 26px; padding: 0 10px; border-radius: 7px; font-size: 12.5px; color: var(--sc-sub); white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--sc-ink); color: var(--sc-on); }
+.sc-play { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 16px; background: var(--sc-ink); color: var(--sc-on); font-size: 13px; }
+.sc-track { flex: 1; min-height: 0; display: flex; align-items: center; gap: var(--sc-gap); overflow-x: auto; overflow-y: hidden; padding: 10px max(40px, env(safe-area-inset-right, 0px)) 40px max(40px, env(safe-area-inset-left, 0px)); scroll-behavior: smooth; cursor: grab; scrollbar-width: none; position: relative; }
+.sc-track::-webkit-scrollbar { display: none; }
+.sc-track.drag { cursor: grabbing; scroll-behavior: auto; }
+.sc-floor { position: absolute; left: 0; right: 0; bottom: 0; height: 22%; background: var(--sc-floor); pointer-events: none; }
+.sc-nav { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 0 0 18px; color: var(--sc-sub); font-family: var(--font-mono); font-size: 12px; position: relative; z-index: 2; }
+.sc-nav button { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--sc-line); display: inline-flex; align-items: center; justify-content: center; color: var(--sc-ink); }
+.sc-prog { width: 160px; height: 2px; background: var(--sc-line); position: relative; }
+.sc-prog i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--sc-ink); width: 0; transition: width .2s; }
+
+.intro { flex: none; width: min(380px, 78vw); display: grid; gap: 14px; position: relative; z-index: 1; }
+.intro .k { font-family: var(--font-mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--sc-sub); }
+.intro h2 { margin: 0; font-family: var(--font-cjk-display); font-weight: 700; font-size: clamp(34px, 5vw, 52px); line-height: 1.15; text-wrap: balance; }
+.intro h2 em { display: block; font-family: var(--font-display); font-style: italic; font-weight: 400; font-size: .62em; color: var(--sc-sub); margin-top: 6px; }
+.intro p { margin: 0; font-family: var(--font-cjk-display); font-size: 14.5px; line-height: 1.9; color: var(--sc-sub); max-width: 32em; }
+.intro .meta { font-family: var(--font-mono); font-size: 12px; color: var(--sc-sub); border-top: 1px solid var(--sc-line); padding-top: 12px; }
+.outro { flex: none; width: 260px; display: grid; gap: 12px; justify-items: start; color: var(--sc-sub); position: relative; z-index: 1; font-family: var(--font-cjk-display); }
+.outro b { font-size: 20px; color: var(--sc-ink); }
+
+.piece { --ph: min(40vh, 420px); flex: none; margin: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 22px; z-index: 1; cursor: zoom-in; }
+.piece .spot { position: absolute; left: 50%; top: -38%; width: calc(var(--ph) * var(--ar) + 260px); height: calc(var(--ph) * 1.5); transform: translateX(-50%); background: radial-gradient(ellipse at 50% 30%, var(--sc-spot), transparent 62%); pointer-events: none; }
+.piece .frame { position: relative; background: var(--sc-frame); padding: var(--sc-fpad); box-shadow: var(--sc-fshadow); transition: transform .3s; }
+.piece:hover .frame { transform: translateY(-3px); }
+.piece .mat { background: var(--sc-mat); padding: calc(var(--ph) * var(--sc-matr)); }
+.piece img { display: block; height: var(--ph); width: calc(var(--ph) * var(--ar)); max-width: none; object-fit: cover; }
+.plaque { align-self: center; display: grid; gap: 2px; padding: 10px 14px; min-width: 180px; background: var(--sc-plaque); color: var(--sc-pink); font-size: 12px; box-shadow: var(--sc-pshadow); }
+.plaque b { font-family: var(--font-cjk-display); font-size: 14px; font-weight: 700; color: var(--sc-ink); }
+.plaque .mono { font-size: 10.5px; opacity: .8; }
+.piece .edge { display: none; }
+
+/* style: gallery wall */
+.sc[data-style="wall"] {
+  --sc-bg: linear-gradient(180deg, #e7e6e2 0%, #dedcd7 78%, #cfcac1 78%, #c4beb3 100%);
+  --sc-ink: #1d1c1a; --sc-on: #f4f3ef; --sc-sub: #5d5a54; --sc-line: rgba(29,28,26,.18);
+  --sc-floor: transparent; --sc-spot: rgba(255,251,240,.85); --sc-gap: 110px;
+  --sc-frame: #262421; --sc-fpad: 7px; --sc-mat: #fbfaf7; --sc-matr: .07;
+  --sc-fshadow: 0 26px 30px -14px rgba(40,30,15,.45), 0 2px 4px rgba(0,0,0,.2);
+  --sc-plaque: #fbfaf7; --sc-pink: #5d5a54; --sc-pshadow: 0 1px 2px rgba(0,0,0,.12);
+}
+/* style: dark hall */
+.sc[data-style="hall"] {
+  --sc-bg: radial-gradient(ellipse at 50% 0%, #26252a 0%, #141417 60%, #0e0e10 100%);
+  --sc-ink: #efece6; --sc-on: #141417; --sc-sub: #9a968e; --sc-line: rgba(239,236,230,.16);
+  --sc-floor: linear-gradient(180deg, transparent, rgba(0,0,0,.35)); --sc-spot: rgba(255,226,180,.16); --sc-gap: 130px;
+  --sc-frame: transparent; --sc-fpad: 0px; --sc-mat: transparent; --sc-matr: 0;
+  --sc-fshadow: 0 40px 60px -20px rgba(0,0,0,.85);
+  --sc-plaque: transparent; --sc-pink: #9a968e; --sc-pshadow: none;
+}
+/* style: film strip */
+.sc[data-style="film"] {
+  --sc-bg: #0c0c0c; --sc-ink: #f1ede4; --sc-on: #0c0c0c; --sc-sub: #8f8a80; --sc-line: rgba(241,237,228,.15);
+  --sc-floor: transparent; --sc-spot: transparent; --sc-gap: 0px;
+  --sc-frame: #1b1813; --sc-fpad: 34px 14px; --sc-mat: transparent; --sc-matr: 0; --sc-fshadow: none;
+  --sc-plaque: transparent; --sc-pink: #8f8a80; --sc-pshadow: none;
+}
+.sc[data-style="film"] .intro { margin-right: 70px; }
+.sc[data-style="film"] .outro { margin-left: 70px; }
+.sc[data-style="film"] .piece { --ph: min(42vh, 400px); }
+.sc[data-style="film"] .frame::before, .sc[data-style="film"] .frame::after {
+  content: ""; position: absolute; left: 0; right: 0; height: 12px;
+  background: repeating-linear-gradient(90deg, transparent 0 9px, #e9e3d6 9px 21px, transparent 21px 30px);
+  -webkit-mask: linear-gradient(#000, #000); border-radius: 2px; opacity: .88;
+}
+.sc[data-style="film"] .frame::before { top: 10px; }
+.sc[data-style="film"] .frame::after { bottom: 10px; }
+.sc[data-style="film"] .piece .edge { display: block; position: absolute; left: 16px; bottom: 23px; font-family: var(--font-mono); font-size: 8.5px; line-height: 11px; letter-spacing: .1em; color: #e39a3c; white-space: nowrap; }
+.sc[data-style="film"] .piece img { filter: saturate(.92) contrast(1.04); }
+.sc[data-style="film"] .piece:hover .frame { transform: none; }
+.sc[data-style="film"] .plaque { padding-top: 0; }
+/* style: polaroid board */
+.sc[data-style="polaroid"] {
+  --sc-bg: radial-gradient(circle at 20% 30%, rgba(255,255,255,.06) 0 1px, transparent 2px) 0 0/9px 9px, radial-gradient(circle at 70% 60%, rgba(0,0,0,.08) 0 1px, transparent 2px) 0 0/7px 7px, #a98762;
+  --sc-ink: #2a1f14; --sc-on: #f3e9da; --sc-sub: #4b3a29; --sc-line: rgba(42,31,20,.28);
+  --sc-floor: transparent; --sc-spot: rgba(255,240,215,.25); --sc-gap: 64px;
+  --sc-frame: #fbfaf6; --sc-fpad: 14px 14px 64px; --sc-mat: transparent; --sc-matr: 0;
+  --sc-fshadow: 0 14px 22px -8px rgba(40,25,10,.55), 0 1px 2px rgba(0,0,0,.2);
+  --sc-plaque: transparent; --sc-pink: #4b3a29; --sc-pshadow: none;
+}
+.sc[data-style="polaroid"] .piece { --ph: min(40vh, 360px); }
+.sc[data-style="polaroid"] .frame { transform: rotate(var(--rot)); }
+.sc[data-style="polaroid"] .piece:hover .frame { transform: rotate(0deg) translateY(-4px) scale(1.02); }
+.sc[data-style="polaroid"] .frame::before { content: ""; position: absolute; top: -12px; left: 50%; width: 90px; height: 26px; transform: translateX(-50%) rotate(-3deg); background: rgba(240,232,210,.62); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.sc[data-style="polaroid"] .piece .hand { display: block; }
+.sc[data-style="polaroid"] .plaque { display: none; }
+.piece .hand { display: none; position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; font-family: var(--font-hand); font-size: 22px; color: #2d3a6b; line-height: 1.2; }
+
+/* ---------- viewer ---------- */
+.viewer { position: fixed; inset: 0; z-index: 50; display: grid; grid-template-columns: 1fr 340px; background: #0a0a0b; color: #ecebe7; animation: fade .2s ease; }
+.viewer.noinfo { grid-template-columns: 1fr 0; }
+.viewer.noinfo .v-info { display: none; }
+@keyframes fade { from { opacity: 0; } }
+.v-stage { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-rows: auto 1fr auto; padding-top: env(safe-area-inset-top, 0px); }
+.v-top { display: flex; align-items: center; gap: 6px; padding-block: 10px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: 12px; }
+.v-top .ix { font-family: var(--font-mono); font-size: 12px; color: #8d8b86; margin-left: 6px; }
+.v-btn { width: 38px; height: 38px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #cfcdc8; }
+.v-btn:hover { background: rgba(255,255,255,.08); color: #fff; }
+.v-btn.on { color: #e2a35a; }
+.v-btn.on svg.fill { fill: currentColor; }
+.v-img { position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 6px 64px; }
+.v-img img { max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 20px 60px rgba(0,0,0,.6); animation: pop .28s cubic-bezier(.2,.8,.2,1); user-select: none; -webkit-user-drag: none; }
+@keyframes pop { from { opacity: 0; transform: scale(.97); } }
+.v-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,.06); color: #ddd; }
+.v-nav:hover { background: rgba(255,255,255,.14); }
+.v-nav.l { left: 12px; } .v-nav.r { right: 12px; }
+.v-strip { display: flex; gap: 4px; overflow-x: auto; padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px)); scrollbar-width: none; justify-content: safe center; }
+.v-strip::-webkit-scrollbar { display: none; }
+.v-strip img { height: 44px; width: auto; flex: none; opacity: .4; border-radius: 2px; cursor: pointer; transition: opacity .15s; }
+.v-strip img:hover { opacity: .75; }
+.v-strip img.on { opacity: 1; outline: 2px solid #e2a35a; outline-offset: 1px; }
+.v-info { background: #131315; border-left: 1px solid #222226; overflow-y: auto; padding: calc(18px + env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) 30px 20px; display: grid; gap: 20px; align-content: start; }
+.v-info h2 { margin: 0; font-family: var(--font-cjk-display); font-size: 22px; font-weight: 700; }
+.v-info .when { color: #a3a19b; font-size: 13px; margin-top: 4px; }
+.v-sec { display: grid; gap: 8px; }
+.v-sec > h5 { margin: 0; font-size: 10.5px; font-weight: 500; letter-spacing: .14em; color: #6f6d68; text-transform: uppercase; }
+.exif-card { border: 1px solid #2a2a2e; border-radius: 10px; overflow: hidden; }
+.exif-card .cam { padding: 10px 12px; display: grid; gap: 1px; background: #19191c; }
+.exif-card .cam b { font-weight: 500; }
+.exif-card .cam span { font-size: 12px; color: #9a9893; }
+.exif-cells { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid #2a2a2e; }
+.exif-cells div { padding: 8px 4px; text-align: center; display: grid; gap: 1px; }
+.exif-cells div + div { border-left: 1px solid #2a2a2e; }
+.exif-cells b { font-family: var(--font-mono); font-size: 13.5px; font-weight: 500; }
+.exif-cells span { font-size: 10.5px; color: #77756f; }
+.hist { width: 100%; height: 74px; display: block; border-radius: 6px; background: #19191c; }
+.swatches { display: flex; gap: 6px; }
+.swatches div { flex: 1; display: grid; gap: 4px; }
+.swatches i { height: 30px; border-radius: 5px; display: block; }
+.swatches span { font-family: var(--font-mono); font-size: 9.5px; color: #85837d; text-align: center; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 12.5px; }
+.kv dt { color: #77756f; }
+.kv dd { margin: 0; text-align: right; font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
+.stars { display: flex; gap: 2px; }
+.stars button { color: #4a4945; }
+.stars button svg { width: 20px; height: 20px; }
+.stars button.on { color: #e2a35a; }
+.stars button.on svg { fill: currentColor; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tags span { font-size: 12px; padding: 3px 9px; border-radius: 12px; background: #202024; color: #bdbbb5; }
+.info-toggle-m { display: none; }
+
+/* ---------- modal ---------- */
+.modal-wrap { position: fixed; inset: 0; z-index: 60; background: rgba(5,5,6,.55); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: fade .15s; }
+.modal { width: min(560px, 100%); max-height: calc(100% - 20px); overflow-y: auto; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 24px; display: grid; gap: 18px; }
+.modal h3 { margin: 0; font-family: var(--font-cjk-display); font-size: 20px; }
+.modal .lead { margin: -10px 0 0; color: var(--muted); font-size: 13px; }
+.opt { display: grid; gap: 8px; }
+.opt > label, .opt > .lbl { font-size: 12px; color: var(--faint); letter-spacing: .04em; }
+.segm { display: flex; flex-wrap: wrap; gap: 6px; }
+.segm button { flex: 1; min-width: 110px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; text-align: left; display: grid; gap: 1px; }
+.segm button b { font-weight: 500; font-size: 13px; }
+.segm button span { font-size: 11.5px; color: var(--faint); font-family: var(--font-mono); }
+.segm button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.sw-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.sw-row div b { display: block; font-weight: 500; font-size: 13.5px; }
+.sw-row div span { font-size: 12px; color: var(--faint); }
+.switch { width: 40px; height: 24px; border-radius: 12px; background: var(--raise); border: 1px solid var(--line); position: relative; flex: none; transition: background .15s; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: all .15s; }
+.switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.switch[aria-checked="true"]::after { left: 18px; background: var(--accent-ink); }
+.txt { box-sizing: border-box; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 0 10px; font-family: var(--font-mono); font-size: 13px; width: 100%; outline: none; }
+.txt:focus { border-color: var(--accent); }
+.preview-names { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); display: grid; gap: 2px; overflow-wrap: anywhere; }
+.m-foot { display: flex; align-items: center; gap: 10px; justify-content: flex-end; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 16px; }
+.m-foot .est { margin-right: auto; font-size: 12.5px; color: var(--muted); }
+.m-foot .est b { font-family: var(--font-mono); color: var(--fg); }
+.btn { height: 38px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); font-size: 13.5px; display: inline-flex; align-items: center; gap: 6px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.prog { height: 6px; border-radius: 3px; background: var(--raise); overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .12s linear; }
+.prog-file { font-family: var(--font-mono); font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.done { display: grid; gap: 6px; padding: 14px; border-radius: 10px; background: var(--accent-soft); }
+.done b { font-family: var(--font-mono); font-weight: 500; overflow-wrap: anywhere; }
+.done span { font-size: 12.5px; color: var(--muted); }
+
+.lan { display: grid; grid-template-columns: 150px 1fr; gap: 20px; align-items: center; }
+.lan canvas { width: 150px; height: 150px; border-radius: 10px; background: #fff; padding: 10px; box-sizing: border-box; }
+.lan .url { font-family: var(--font-mono); font-size: 17px; color: var(--accent); overflow-wrap: anywhere; }
+.lan p { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+.note { font-size: 11.5px; color: var(--faint); }
+.device { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 13px; }
+.device span { margin-left: auto; font-size: 12px; color: var(--faint); }
+
+/* ---------- slideshow ---------- */
+.ss { position: fixed; inset: 0; z-index: 70; background: #000; overflow: hidden; color: #fff; animation: fade .4s; }
+.ss-slide { position: absolute; inset: 0; opacity: 0; transition: opacity 1.4s ease; }
+.ss-slide.on { opacity: 1; }
+.ss-slide img { width: 100%; height: 100%; object-fit: contain; max-width: none; }
+.ss-slide.on img { animation: kb 7s ease-out forwards; }
+@keyframes kb { from { transform: scale(1.02) translate(0,0); } to { transform: scale(var(--ks)) translate(var(--kx), var(--ky)); } }
+.ss-cap { position: absolute; left: max(32px, env(safe-area-inset-left, 0px)); bottom: calc(40px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 4px; text-shadow: 0 1px 12px rgba(0,0,0,.7); }
+.ss-cap b { font-family: var(--font-cjk-display); font-size: 26px; }
+.ss-cap span { font-family: var(--font-mono); font-size: 12px; opacity: .8; }
+.ss-ctl { position: absolute; right: max(24px, env(safe-area-inset-right, 0px)); bottom: calc(36px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 6px; }
+.ss-ctl button { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.1); display: inline-flex; align-items: center; justify-content: center; color: #fff; }
+.ss-bar { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: rgba(255,255,255,.12); }
+.ss-bar i { display: block; height: 100%; background: #e2a35a; width: 0; }
+
+.toast { position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(10px); z-index: 90; background: var(--fg); color: var(--bg); padding: 9px 16px; border-radius: 10px; font-size: 13px; opacity: 0; pointer-events: none; transition: all .2s; max-width: calc(100vw - 32px); }
+.toast.show { opacity: 1; transform: translateX(-50%); }
+.backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 39; }
+
+.tabbar { display: none; }
+
+/* ---------- phone ---------- */
+@media (max-width: 860px) {
+  .tabs, .phone-btn .lbl { display: none; }
+  .menu-btn { display: inline-flex; }
+  .topbar { gap: 8px; }
+  .brand { font-size: 22px; }
+  .search { max-width: none; }
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: 270px; z-index: 40; transform: translateX(-102%); transition: transform .25s; padding-top: calc(18px + env(safe-area-inset-top, 0px)); box-shadow: var(--shadow); }
+  .sidebar.open { transform: none; }
+  #view-library { padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+  .scrubber { display: none; }
+  .controls { margin-left: 0; width: 100%; }
+  .ctl.density { display: none; }
+  .lib-title h1 { font-size: 22px; }
+  .grid { gap: 3px; }
+  .tile { border-radius: 2px; }
+  .tile-ov { display: none; }
+  .tabbar { display: flex; border-top: 1px solid var(--line); background: var(--bg); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
+  .tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 6px; font-size: 11px; color: var(--faint); }
+  .tabbar button[aria-current="true"] { color: var(--accent); }
+  .selbar { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); padding-left: 14px; }
+  .selbar .lbl { display: none; }
+  #view-albums { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .album-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .album .t span { display: none; }
+  .sc-bar { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .seg { margin-left: 0; }
+  .sc-ex { flex-wrap: nowrap; overflow-x: auto; width: 100%; scrollbar-width: none; }
+  .piece { --ph: min(38vh, 300px); }
+  .sc[data-style="wall"], .sc[data-style="hall"] { --sc-gap: 60px; }
+  .viewer { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  .v-img { padding: 0; }
+  .v-nav { display: none; }
+  .v-info { position: absolute; left: 0; right: 0; bottom: 0; max-height: 62%; border-left: 0; border-top: 1px solid #2a2a2e; border-radius: 16px 16px 0 0; z-index: 3; padding: 20px max(18px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px)); box-shadow: 0 -20px 40px rgba(0,0,0,.5); }
+  .viewer.noinfo { grid-template-columns: 1fr; }
+  .info-toggle-d { display: none; }
+  .info-toggle-m { display: inline-flex; }
+  .lan { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+}
+@media (max-width: 480px) {
+  .brand span { display: none; }
+  .ctl .lbl { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+</style>
+
+<div class="app">
+  <header class="topbar">
+    <button class="icon-btn menu-btn" id="menuBtn" aria-label="打开侧栏"></button>
+    <div class="brand"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="16" cy="16" r="13"/><path d="M16 3 L21.5 13.5 M29 16 L18.5 21.5 M16 29 L10.5 18.5 M3 16 L13.5 10.5 M25.2 6.8 L22 18 M25.2 25.2 L14 22 M6.8 25.2 L10 14 M6.8 6.8 L18 10"/></svg><span>DreamView</span></div>
+    <nav class="tabs" id="tabs"></nav>
+    <label class="search"><span hidden>搜索照片</span><input id="q" type="search" placeholder="搜索地点、相机、镜头、标签…" autocomplete="off"></label>
+    <div class="top-actions">
+      <button class="icon-btn outline phone-btn" id="phoneBtn"></button>
+      <button class="icon-btn" id="themeBtn" aria-label="切换明暗"></button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <section class="view" id="view-library">
+        <div class="lib-head">
+          <div class="lib-title"><h1 id="libTitle">全部照片</h1><p id="libMeta"></p></div>
+          <div class="controls">
+            <label class="ctl"><span class="lbl">排序</span>
+              <select id="sortSel">
+                <option value="date">拍摄时间</option><option value="rating">评分</option><option value="size">文件大小</option>
+                <option value="focal">焦距</option><option value="aperture">光圈</option><option value="iso">ISO</option>
+                <option value="camera">相机型号</option><option value="hue">色调</option><option value="random">随机</option>
+              </select>
+            </label>
+            <button class="ctl" id="dirBtn" aria-label="切换升降序"></button>
+            <label class="ctl"><span class="lbl">分组</span>
+              <select id="groupSel">
+                <option value="month">按月</option><option value="year">按年</option><option value="trip">按旅程</option>
+                <option value="camera">按相机</option><option value="none">不分组</option>
+              </select>
+            </label>
+            <label class="ctl density"><span class="lbl">大小</span><input id="density" type="range" min="130" max="340" value="220"></label>
+            <button class="ctl" id="filterBtn"></button>
+            <button class="ctl" id="selBtn"></button>
+          </div>
+        </div>
+        <div class="filters" id="filters" hidden></div>
+        <div id="groups"></div>
+        <nav class="scrubber" id="scrubber" aria-label="时间轴"></nav>
+      </section>
+      <section class="view" id="view-albums" hidden></section>
+      <section class="view sc" id="view-showcase" data-style="wall" hidden>
+        <div class="sc-bar">
+          <div class="sc-ex" id="scEx"></div>
+          <div class="seg" id="scStyle"></div>
+          <button class="sc-play" id="scPlay"></button>
+        </div>
+        <div class="sc-track" id="scTrack"></div>
+        <div class="sc-nav"><button id="scPrev" aria-label="上一件"></button><span id="scCount">1 / 7</span><div class="sc-prog"><i id="scProg"></i></div><button id="scNext" aria-label="下一件"></button></div>
+      </section>
+    </main>
+  </div>
+
+  <nav class="tabbar" id="tabbar"></nav>
+</div>
+
+<div class="selbar" id="selbar" hidden></div>
+<div class="viewer" id="viewer" hidden></div>
+<div class="modal-wrap" id="modal" hidden></div>
+<div class="ss" id="ss" hidden></div>
+<div class="backdrop" id="backdrop" hidden></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ===================== icons ===================== */
+const IC = {
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  album: '<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M7 2h12a2 2 0 0 1 2 2v12"/><path d="m3 16 4-4 4 4 2-2 4 4"/>',
+  frame: '<rect x="4" y="3" width="16" height="18" rx="1"/><rect x="7.5" y="6.5" width="9" height="11"/><path d="M9 21v1M15 21v1"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2"/>',
+  moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  filter: '<path d="M4 5h16l-6 7.5V19l-4 1.5v-8L4 5Z"/>',
+  check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  checksq: '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="m8 12 3 3 5-6"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  left: '<path d="m15 5-7 7 7 7"/>', right: '<path d="m9 5 7 7-7 7"/>',
+  down: '<path d="M12 4v16M6 14l6 6 6-6"/>', up: '<path d="M12 20V4M6 10l6-6 6 6"/>',
+  heart: '<path d="M12 20s-7.5-4.6-9.2-9.4C1.6 7 3.9 4 7.2 4c2 0 3.6 1.1 4.8 2.8C13.2 5.1 14.8 4 16.8 4c3.3 0 5.6 3 4.4 6.6C19.5 15.4 12 20 12 20Z"/>',
+  star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+  play: '<path d="M7 4.5v15l13-7.5-13-7.5Z"/>', pause: '<path d="M8 5v14M16 5v14"/>',
+  pkg: '<path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5v-9Z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  folder: '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4l2 2h9A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-11Z"/>',
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+  moonst: '<path d="M18 14.5A7 7 0 1 1 9.5 6a5.5 5.5 0 0 0 8.5 8.5Z"/><path d="M18 3v3M16.5 4.5h3"/>',
+  wide: '<path d="M3 8l5-3v14l-5-3V8ZM21 8l-5-3v14l5-3V8Z"/><path d="M8 12h8"/>',
+  mobile: '<rect x="7" y="2.5" width="10" height="19" rx="2.2"/>',
+};
+const ic = (n, cls='') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>`;
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ===================== seeded random ===================== */
+function rng(seed) { return function() { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const pick = (r, a) => a[Math.floor(r() * a.length)];
+
+/* ===================== procedural sample photos ===================== */
+function skyFill(ctx, w, h, stops) { const g = ctx.createLinearGradient(0, 0, 0, h); stops.forEach(([o, c]) => g.addColorStop(o, c)); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); }
+function glow(ctx, x, y, rad, hh, s, l, a) { const g = ctx.createRadialGradient(x, y, 0, x, y, rad); g.addColorStop(0, `hsla(${hh},${s}%,${l}%,${a})`); g.addColorStop(1, `hsla(${hh},${s}%,${l}%,0)`); ctx.fillStyle = g; ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2); }
+function ridge(ctx, w, h, r, y0, amp, fill, smooth) {
+  const p1 = r() * 10, p2 = r() * 10, p3 = r() * 10, f1 = 0.6 + r() * 1.6, f2 = 2.5 + r() * 3, f3 = 8 + r() * 9;
+  ctx.beginPath(); ctx.moveTo(0, h);
+  for (let i = 0; i <= 120; i++) { const x = i / 120; const n = Math.sin(x * f1 * Math.PI + p1) * .6 + Math.sin(x * f2 * Math.PI + p2) * .3 + (smooth ? 0 : Math.sin(x * f3 * Math.PI + p3) * .1); ctx.lineTo(x * w, (y0 + amp * n) * h); }
+  ctx.lineTo(w, h); ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+}
+const SCENES = {
+  sunset(ctx, w, h, r) {
+    const s = (r() - .5) * 24;
+    skyFill(ctx, w, h, [[0, `hsl(${232 + s},38%,20%)`], [.42, `hsl(${336 + s},40%,46%)`], [.6, `hsl(${22 + s},78%,64%)`], [1, `hsl(${34 + s},80%,70%)`]]);
+    const sx = w * (.25 + r() * .5), sy = h * (.5 + r() * .06), m = Math.min(w, h);
+    glow(ctx, sx, sy, m * .7, 32 + s, 95, 72, .55);
+    ctx.fillStyle = 'hsl(42,100%,90%)'; ctx.beginPath(); ctx.arc(sx, sy, m * .04, 0, 7); ctx.fill();
+    for (let i = 0; i < 4; i++) ridge(ctx, w, h, r, .56 + i * .1, .08 - i * .012, `hsl(${258 + s - i * 6},${20 + i * 4}%,${44 - i * 10.5}%)`);
+  },
+  sea(ctx, w, h, r, lake) {
+    const s = (r() - .5) * 18, hz = .48 + r() * .14;
+    if (lake) skyFill(ctx, w, h, [[0, `hsl(${206 + s},55%,58%)`], [hz, `hsl(${192 + s},42%,86%)`], [1, '#000']]);
+    else skyFill(ctx, w, h, [[0, `hsl(${214 + s},42%,52%)`], [hz * .8, `hsl(${300 + s},25%,74%)`], [hz, `hsl(${28 + s},72%,82%)`], [1, '#000']]);
+    const sx = w * (.3 + r() * .4);
+    if (!lake) glow(ctx, sx, hz * h, w * .45, 32, 90, 80, .55);
+    if (lake) { ridge(ctx, w, h, r, hz - .035, .03, `hsl(${215 + s},18%,58%)`); ridge(ctx, w, h, r, hz - .015, .02, `hsl(${210 + s},20%,46%)`); }
+    const g = ctx.createLinearGradient(0, hz * h, 0, h);
+    if (lake) { g.addColorStop(0, `hsl(${188 + s},38%,64%)`); g.addColorStop(1, `hsl(${200 + s},44%,28%)`); }
+    else { g.addColorStop(0, `hsl(${205 + s},34%,52%)`); g.addColorStop(1, `hsl(${216 + s},48%,16%)`); }
+    ctx.fillStyle = g; ctx.fillRect(0, hz * h, w, h);
+    const k = w / 800;
+    for (let i = 0; i < 220; i++) {
+      const t = Math.pow(r(), 1.6), y = hz * h + t * (1 - hz) * h, spread = (lake ? .45 : .06 + t * .25) * w;
+      const x = (lake ? r() * w : sx + (r() - .5) * spread), len = (8 + r() * 40) * k * (1 + t * 2);
+      ctx.fillStyle = lake ? `hsla(190,40%,92%,${.18 * (1 - t)})` : `hsla(40,95%,88%,${.45 * (1 - t)})`;
+      ctx.fillRect(x - len / 2, y, len, Math.max(1, 1.4 * k * (1 + t)));
+    }
+  },
+  lake(ctx, w, h, r) { SCENES.sea(ctx, w, h, r, true); },
+  city(ctx, w, h, r) {
+    skyFill(ctx, w, h, [[0, 'hsl(234,48%,7%)'], [.55, 'hsl(258,34%,19%)'], [1, 'hsl(18,58%,34%)']]);
+    if (r() < .6) { const mx = w * (.15 + r() * .7), my = h * (.12 + r() * .15); glow(ctx, mx, my, h * .18, 40, 60, 85, .25); ctx.fillStyle = 'hsl(45,60%,92%)'; ctx.beginPath(); ctx.arc(mx, my, h * .025, 0, 7); ctx.fill(); }
+    for (const layer of [0, 1]) {
+      let x = -10;
+      while (x < w) {
+        const bw = w * (.03 + r() * .07), bh = h * (layer ? .25 + Math.pow(r(), 1.4) * .5 : .3 + r() * .25);
+        ctx.fillStyle = layer ? `hsl(236,26%,${5 + r() * 6}%)` : `hsl(245,22%,${15 + r() * 6}%)`;
+        ctx.fillRect(x, h - bh, bw + 1, bh);
+        if (layer) {
+          const cw = Math.max(3, w * .011), chh = Math.max(3, h * .02);
+          for (let yy = h - bh + chh; yy < h - chh; yy += chh * 1.6) for (let xx = x + cw * .6; xx < x + bw - cw; xx += cw * 1.7)
+            if (r() < .33) { ctx.fillStyle = `hsla(${38 + r() * 18},90%,${62 + r() * 18}%,${.45 + r() * .5})`; ctx.fillRect(xx, yy, cw * .8, chh * .7); }
+        }
+        x += bw + (layer ? 0 : w * .005);
+      }
+    }
+    glow(ctx, w * .5, h * 1.05, w * .6, 25, 80, 55, .35);
+  },
+  bokeh(ctx, w, h, r) {
+    skyFill(ctx, w, h, [[0, 'hsl(228,30%,7%)'], [1, 'hsl(262,26%,12%)']]);
+    ctx.globalCompositeOperation = 'lighter';
+    const hues = [36, 22, 188, 330, 45];
+    for (let i = 0; i < 60; i++) {
+      const x = r() * w, y = h * (.15 + r() * .75), rad = Math.min(w, h) * (.02 + Math.pow(r(), 2.2) * .12), hh = pick(r, hues);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+      g.addColorStop(0, `hsla(${hh},85%,62%,.34)`); g.addColorStop(.82, `hsla(${hh},85%,60%,.26)`); g.addColorStop(1, `hsla(${hh},85%,60%,0)`);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  },
+  aurora(ctx, w, h, r) {
+    skyFill(ctx, w, h, [[0, 'hsl(226,55%,5%)'], [.7, 'hsl(206,45%,13%)'], [1, 'hsl(196,40%,19%)']]);
+    const n = w * h / 2400;
+    for (let i = 0; i < n; i++) { ctx.fillStyle = `rgba(255,255,255,${r() * .7})`; const z = r() < .05 ? 2 : 1; ctx.fillRect(r() * w, r() * h * .8, z, z); }
+    ctx.globalCompositeOperation = 'lighter';
+    const bands = 2 + Math.floor(r() * 2);
+    for (let b = 0; b < bands; b++) {
+      const y0 = h * (.28 + r() * .25), y1 = h * (.2 + r() * .3), c1 = [w * (.2 + r() * .3), h * (r() * .7)], c2 = [w * (.5 + r() * .3), h * (.2 + r() * .6)], base = 135 + r() * 25;
+      ctx.lineWidth = h * .012;
+      for (let j = 0; j < 70; j++) {
+        const o = j * h * .0045;
+        ctx.strokeStyle = `hsla(${base + j * 1.9},85%,58%,${.06 * (1 - j / 70)})`;
+        ctx.beginPath(); ctx.moveTo(-w * .1, y0 - o); ctx.bezierCurveTo(c1[0], c1[1] - o, c2[0], c2[1] - o, w * 1.1, y1 - o); ctx.stroke();
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ridge(ctx, w, h, r, .8, .06, 'hsl(222,30%,5%)');
+  },
+  dunes(ctx, w, h, r) {
+    const s = (r() - .5) * 14;
+    skyFill(ctx, w, h, [[0, `hsl(${206 + s},50%,60%)`], [.45, `hsl(${32 + s},55%,82%)`], [1, '#000']]);
+    glow(ctx, w * (.2 + r() * .6), h * .38, w * .4, 38, 90, 88, .5);
+    for (let i = 0; i < 4; i++) {
+      const L = 66 - i * 9, g = ctx.createLinearGradient(0, 0, w, 0), ph = r();
+      for (let k = 0; k <= 6; k++) g.addColorStop(k / 6, `hsl(${28 + s},${52 + i * 6}%,${(k + Math.round(ph * 2)) % 2 ? L - 16 : L}%)`);
+      ridge(ctx, w, h, r, .42 + i * .13, .07, g, true);
+    }
+  },
+  forest(ctx, w, h, r, hb) {
+    hb = hb ?? (r() < .5 ? 150 : 12);
+    const sat = hb < 60 ? 40 : 18;
+    skyFill(ctx, w, h, [[0, `hsl(${hb},14%,84%)`], [1, `hsl(${hb},12%,66%)`]]);
+    for (let i = 0; i < 5; i++) {
+      const L = 64 - i * 12.5, col = `hsl(${hb + i * 3},${sat + i * 4}%,${L}%)`, by = .58 + i * .085;
+      ctx.fillStyle = col;
+      const cnt = 16 + i * 7;
+      for (let t = 0; t < cnt; t++) {
+        const x = r() * w, th = h * (.16 + i * .07) * (.6 + r() * .6), tw = th * .34, y = by * h;
+        for (let k = 0; k < 3; k++) { const yy = y - th * k * .28; ctx.beginPath(); ctx.moveTo(x, yy - th * .55); ctx.lineTo(x - tw * (1 - k * .22) / 2, yy); ctx.lineTo(x + tw * (1 - k * .22) / 2, yy); ctx.closePath(); ctx.fill(); }
+        ctx.fillRect(x - tw * .04, y, tw * .08, h * .03);
+      }
+      ridge(ctx, w, h, r, by + .01, .01, col, true);
+      ctx.fillStyle = `hsla(${hb},14%,86%,.2)`; ctx.fillRect(0, 0, w, h);
+    }
+  },
+};
+function render(p, longSide) {
+  const w = p.ar >= 1 ? longSide : Math.round(longSide * p.ar), h = p.ar >= 1 ? Math.round(longSide / p.ar) : longSide;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  SCENES[p.scene](ctx, w, h, rng(p.seed));
+  const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .35, w / 2, h / 2, Math.hypot(w, h) * .62);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.34)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
+  const gr = rng(p.seed ^ 0x5f3759df), n = w * h / 140;
+  for (let i = 0; i < n; i++) { ctx.fillStyle = gr() < .5 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.07)'; ctx.fillRect(gr() * w, gr() * h, 1, 1); }
+  return c;
+}
+
+/* ===================== sample library ===================== */
+const CAMS = {
+  XT5: { name: 'FUJIFILM X-T5', short: 'X-T5', ext: 'RAF', pre: 'DSCF', px: 7728, nat: 1.5, mbpp: 1.45, lenses: [{ n: 'XF23mmF1.4 R LM WR', f: [23], a: [1.4, 2, 2.8, 5.6] }, { n: 'XF16-55mmF2.8 R LM WR', f: [16, 23, 35, 55], a: [2.8, 4, 8] }] },
+  A7: { name: 'SONY α7 IV', short: 'α7 IV', ext: 'ARW', pre: 'DSC0', px: 7008, nat: 1.5, mbpp: 1.3, lenses: [{ n: 'FE 24-70mm F2.8 GM II', f: [24, 35, 50, 70], a: [2.8, 4, 8, 11] }, { n: 'FE 70-200mm F4 Macro G OSS II', f: [85, 135, 200], a: [4, 5.6, 8] }] },
+  R6: { name: 'Canon EOS R6', short: 'EOS R6', ext: 'CR3', pre: 'IMG_', px: 5472, nat: 1.5, mbpp: 1.25, lenses: [{ n: 'RF35mm F1.8 MACRO IS STM', f: [35], a: [1.8, 2.8, 5.6] }, { n: 'RF24-105mm F4 L IS USM', f: [24, 50, 105], a: [4, 8] }] },
+  IP: { name: 'iPhone 16 Pro', short: 'iPhone', ext: 'HEIC', pre: 'IMG_', px: 5712, nat: 4 / 3, mbpp: .2, lenses: [{ n: '主摄 24mm f/1.78', f: [24], a: [1.78] }, { n: '超广角 13mm f/2.2', f: [13], a: [2.2] }, { n: '长焦 120mm f/2.8', f: [120], a: [2.8] }] },
+  GR: { name: 'RICOH GR IIIx', short: 'GR IIIx', ext: 'DNG', pre: 'R00', px: 6000, nat: 1.5, mbpp: 1.1, lenses: [{ n: 'GR LENS 26.1mm F2.8', f: [40], a: [2.8, 4, 5.6] }] },
+};
+const TRIPS = [
+  { key: 'iceland', name: '冰岛', color: '#5fb6a0', start: [2025, 9, 8], days: 11, n: 10, cams: ['XT5', 'XT5', 'IP'], scenes: ['aurora', 'aurora', 'sea', 'sunset', 'lake', 'aurora'], gps: [64.1466, -21.9426], places: ['雷克雅未克', '维克黑沙滩', '杰古沙龙冰河湖', '辛格维利尔', '斯奈山半岛'] },
+  { key: 'shanghai', name: '上海', color: '#b58ad6', start: [2025, 6, 20], days: 3, n: 5, cams: ['IP', 'A7'], scenes: ['city', 'bokeh', 'city'], gps: [31.2304, 121.4737], places: ['外滩', '武康路', '陆家嘴'] },
+  { key: 'kyoto', name: '京都', color: '#d9785b', start: [2025, 4, 2], days: 6, n: 9, cams: ['XT5', 'GR'], scenes: ['forest', 'forest', 'city', 'sunset', 'bokeh'], gps: [35.0116, 135.7681], places: ['岚山', '祇园', '伏见稻荷', '鸭川'] },
+  { key: 'dunhuang', name: '敦煌', color: '#d6a24e', start: [2024, 10, 3], days: 5, n: 7, cams: ['A7'], scenes: ['dunes', 'dunes', 'sunset', 'dunes'], gps: [40.1421, 94.6620], places: ['鸣沙山', '月牙泉', '雅丹魔鬼城'] },
+  { key: 'qinghai', name: '青海湖', color: '#6aa6d8', start: [2024, 7, 15], days: 4, n: 7, cams: ['A7', 'IP'], scenes: ['lake', 'sunset', 'lake'], gps: [36.8973, 100.1795], places: ['二郎剑', '黑马河', '茶卡盐湖'] },
+  { key: 'tokyo', name: '东京', color: '#e0687a', start: [2024, 2, 10], days: 7, n: 9, cams: ['R6', 'GR', 'IP'], scenes: ['city', 'bokeh', 'city', 'sunset'], gps: [35.6762, 139.6503], places: ['新宿', '涩谷', '浅草', '台场'] },
+  { key: 'dali', name: '大理', color: '#7cbf6e', start: [2023, 11, 18], days: 5, n: 7, cams: ['R6', 'IP'], scenes: ['lake', 'forest', 'sunset'], gps: [25.6065, 100.2676], places: ['洱海', '苍山', '双廊'] },
+  { key: 'xiamen', name: '厦门', color: '#e3b04b', start: [2023, 6, 3], days: 3, n: 6, cams: ['R6'], scenes: ['sea', 'sunset', 'sea'], gps: [24.4798, 118.0894], places: ['鼓浪屿', '环岛路', '曾厝垵'] },
+];
+const TITLES = { aurora: ['极光之下', '北境之夜', '绿色的风', '午夜帷幕'], sea: ['潮汐', '海平线', '退潮之后', '最后的光'], sunset: ['日落时分', '余晖', '山的轮廓', '薄暮'], lake: ['湖面', '静水', '远山', '高原的蓝'], city: ['夜行', '街角', '灯火', '天际线'], bokeh: ['光斑', '雨夜', '散焦', '霓虹'], dunes: ['沙脊', '风的痕迹', '鸣沙', '金色的线'], forest: ['林间', '雾', '深秋', '山色'] };
+const TAGS = { aurora: ['极光', '夜景', '星空'], sea: ['海', '日出日落'], sunset: ['日落', '山'], lake: ['湖', '风光'], city: ['城市', '夜景', '建筑'], bokeh: ['夜景', '散景'], dunes: ['沙漠', '风光'], forest: ['森林', '雾'] };
+const WEEK = '日一二三四五六';
+
+const PHOTOS = [];
+(function build() {
+  const r = rng(20251015); let id = 0; const counters = {};
+  TRIPS.forEach(t => {
+    t.ids = [];
+    for (let i = 0; i < t.n; i++) {
+      const ck = pick(r, t.cams), cam = CAMS[ck], lens = pick(r, cam.lenses), scene = t.scenes[i % t.scenes.length];
+      const roll = r(); let ar = roll < .56 ? cam.nat : roll < .76 ? 1 / cam.nat : roll < .84 ? 1 : roll < .93 ? 16 / 9 : 2.4;
+      if (scene === 'aurora' && ar < 1 && r() < .5) ar = cam.nat;
+      const night = ['aurora', 'city', 'bokeh'].includes(scene);
+      const hour = scene === 'aurora' ? 22 + Math.floor(r() * 3) : night ? 19 + Math.floor(r() * 3) : scene === 'sunset' ? 18 : 8 + Math.floor(r() * 8);
+      const d = new Date(t.start[0], t.start[1] - 1, t.start[2] + Math.floor(i / t.n * t.days), hour % 24, Math.floor(r() * 60), Math.floor(r() * 60));
+      if (hour >= 24) d.setDate(d.getDate() + 1);
+      const W = ar >= 1 ? cam.px : Math.round(cam.px * ar), H = ar >= 1 ? Math.round(cam.px / ar) : cam.px, mp = W * H / 1e6;
+      counters[ck] = (counters[ck] || 1000 + Math.floor(r() * 7000)) + 1 + Math.floor(r() * 30);
+      const file = `${cam.pre}${String(counters[ck]).padStart(4, '0')}.${cam.ext}`;
+      const shutter = scene === 'aurora' ? pick(r, ['4s', '8s', '13s', '15s']) : night ? pick(r, ['1/30', '1/60', '1/15', '1/125']) : pick(r, ['1/125', '1/250', '1/500', '1/1000', '1/2000']);
+      const iso = scene === 'aurora' ? pick(r, [1600, 3200, 6400]) : night ? pick(r, [800, 1600, 3200]) : pick(r, [100, 125, 160, 200, 400]);
+      const rating = [0, 1, 2, 3, 3, 4, 4, 4, 5, 5][Math.floor(r() * 10)];
+      const place = pick(r, t.places);
+      const mon = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const p = {
+        id: id++, trip: t.key, tripName: t.name, place, scene, cam: ck, camName: cam.name, camShort: cam.short, lens: lens.n,
+        focal: pick(r, lens.f), ap: pick(r, lens.a), shutter, iso, rating, fav: rating === 5 ? r() < .7 : r() < .12,
+        ar, W, H, mp, mb: +(mp * cam.mbpp * (.85 + r() * .3)).toFixed(1), date: d, ts: d.getTime(), file,
+        path: `D:\\Photos\\${d.getFullYear()}\\${mon} ${t.name}\\${file}`,
+        lat: t.gps[0] + (r() - .5) * .4, lon: t.gps[1] + (r() - .5) * .5,
+        title: pick(r, TITLES[scene]), tags: [...TAGS[scene], t.name], seed: Math.floor(r() * 1e9), rand: r(),
+      };
+      t.ids.push(p.id); PHOTOS.push(p);
+    }
+  });
+  PHOTOS.forEach(p => {
+    const c = render(p, 520); p.cv = c; p.thumb = c.toDataURL('image/jpeg', .84);
+    const s = document.createElement('canvas'); s.width = s.height = 24; const sx = s.getContext('2d'); sx.drawImage(c, 0, 0, 24, 24);
+    const d = sx.getImageData(0, 0, 24, 24).data; let R = 0, G = 0, B = 0;
+    for (let i = 0; i < d.length; i += 4) { R += d[i]; G += d[i + 1]; B += d[i + 2]; }
+    const n = d.length / 4; R /= n; G /= n; B /= n; p.avg = [R, G, B];
+    const mx = Math.max(R, G, B), mn = Math.min(R, G, B), l = (mx + mn) / 510, sat = mx === mn ? 0 : (mx - mn) / (255 - Math.abs(mx + mn - 255));
+    let hu = 0; if (mx !== mn) { if (mx === R) hu = ((G - B) / (mx - mn)) % 6; else if (mx === G) hu = (B - R) / (mx - mn) + 2; else hu = (R - G) / (mx - mn) + 4; hu = (hu * 60 + 360) % 360; }
+    p.hueKey = sat < .12 ? 400 + (1 - l) * 100 : hu;
+  });
+})();
+const byId = id => PHOTOS[id];
+const tripOf = k => TRIPS.find(t => t.key === k);
+
+/* ===================== formatting ===================== */
+const pad = n => String(n).padStart(2, '0');
+const fmtDate = d => `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 周${WEEK[d.getDay()]} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const fmtShort = d => `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
+const fmtMB = mb => mb >= 1024 ? (mb / 1024).toFixed(2) + ' GB' : mb.toFixed(mb < 10 ? 1 : 0) + ' MB';
+const exifLine = p => `${p.focal}mm  f/${p.ap}  ${p.shutter}${p.shutter.endsWith('s') ? '' : 's'}  ISO${p.iso}`;
+const fmtGPS = (la, lo) => `${Math.abs(la).toFixed(4)}°${la >= 0 ? 'N' : 'S'}  ${Math.abs(lo).toFixed(4)}°${lo >= 0 ? 'E' : 'W'}`;
+
+/* ===================== state ===================== */
+const state = {
+  view: 'library', scope: { type: 'all' }, q: '', sort: 'date', dir: -1, group: 'month', rowH: 220,
+  f: { cams: new Set(), minRating: 0, focal: null, orient: null }, showFilters: false,
+  selecting: false, sel: new Set(), lastClick: null, list: [], vIdx: -1, vInfo: true,
+  ex: 0, scStyle: 'wall',
+};
+const SMART = [
+  { key: 'five', name: '五星精选', icon: 'star', rule: 'rating = 5', fn: p => p.rating === 5 },
+  { key: 'night', name: '夜色', icon: 'moonst', rule: 'ISO ≥ 1600', fn: p => p.iso >= 1600 },
+  { key: 'wide', name: '广角风光', icon: 'wide', rule: 'focal ≤ 24mm', fn: p => p.focal <= 24 },
+  { key: 'mobile', name: '手机随拍', icon: 'mobile', rule: 'camera = iPhone', fn: p => p.cam === 'IP' },
+];
+function scopeInfo() {
+  const s = state.scope;
+  if (s.type === 'fav') return { name: '收藏', fn: p => p.fav };
+  if (s.type === 'recent') return { name: '最近导入', fn: p => p.trip === 'iceland' };
+  if (s.type === 'smart') { const m = SMART.find(x => x.key === s.key); return { name: m.name, fn: m.fn, rule: m.rule }; }
+  if (s.type === 'album') { const t = tripOf(s.key); return { name: t.name, fn: p => p.trip === t.key, album: true }; }
+  return { name: '全部照片', fn: () => true };
+}
+
+/* ===================== filter + sort + group ===================== */
+function compute() {
+  const sc = scopeInfo(), q = state.q.trim().toLowerCase(), f = state.f;
+  let items = PHOTOS.filter(p => sc.fn(p));
+  if (q) items = items.filter(p => [p.place, p.tripName, p.camName, p.lens, p.file, p.title, ...p.tags, String(p.focal) + 'mm'].join(' ').toLowerCase().includes(q));
+  if (f.cams.size) items = items.filter(p => f.cams.has(p.cam));
+  if (f.minRating) items = items.filter(p => p.rating >= f.minRating);
+  if (f.focal) items = items.filter(p => f.focal === 'w' ? p.focal <= 24 : f.focal === 'n' ? p.focal > 24 && p.focal <= 70 : p.focal > 70);
+  if (f.orient) items = items.filter(p => f.orient === 'l' ? p.ar > 1.05 && p.ar < 2 : f.orient === 'p' ? p.ar < .95 : f.orient === 's' ? Math.abs(p.ar - 1) < .05 : p.ar >= 2);
+  const key = { date: p => p.ts, rating: p => p.rating * 1e13 + p.ts, size: p => p.mb, focal: p => p.focal, aperture: p => p.ap, iso: p => p.iso, camera: p => p.camName, hue: p => p.hueKey, random: p => p.rand }[state.sort];
+  const d = state.dir;
+  items.sort((a, b) => { const x = key(a), y = key(b); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * d || (b.ts - a.ts); });
+  let groups;
+  const g = state.group;
+  if (g === 'none') groups = [{ key: 'all', label: '', items }];
+  else {
+    const map = new Map();
+    const gk = { month: p => `${p.date.getFullYear()}-${pad(p.date.getMonth() + 1)}`, year: p => String(p.date.getFullYear()), trip: p => p.trip, camera: p => p.cam }[g];
+    items.forEach(p => { const k = gk(p); if (!map.has(k)) map.set(k, []); map.get(k).push(p); });
+    groups = [...map].map(([k, its]) => {
+      const places = [...new Set(its.map(p => p.tripName))];
+      if (g === 'month') { const [y, m] = k.split('-'); return { key: k, y, m: +m, label: `${y}年${+m}月`, sub: places.join('、'), items: its }; }
+      if (g === 'year') return { key: k, y: k, label: `${k}年`, sub: places.join('、'), items: its };
+      if (g === 'trip') { const t = tripOf(k); const ts = its.map(p => p.ts); return { key: k, label: t.name, sub: `${fmtShort(new Date(Math.min(...ts)))} – ${fmtShort(new Date(Math.max(...ts))).slice(5)}`, items: its, t0: Math.min(...ts) }; }
+      return { key: k, label: CAMS[k].name, sub: [...new Set(its.map(p => p.lens))].length + ' 支镜头', items: its };
+    });
+    if (g === 'month' || g === 'year') groups.sort((a, b) => (state.sort === 'date' ? d : -1) * a.key.localeCompare(b.key));
+    else if (g === 'trip') groups.sort((a, b) => b.t0 - a.t0);
+    else groups.sort((a, b) => b.items.length - a.items.length);
+  }
+  state.list = groups.flatMap(x => x.items);
+  return { sc, groups, items };
+}
+
+/* ===================== justified rows ===================== */
+function justify(items, W, H, gap) {
+  const out = []; let row = [], sum = 0;
+  const flush = last => {
+    if (!row.length) return;
+    let h = (W - gap * (row.length - 1)) / sum; if (last && h > H * 1.15) h = H;
+    row.forEach(p => out.push({ p, w: Math.floor(p.ar * h), h: Math.floor(h) })); row = []; sum = 0;
+  };
+  items.forEach(p => { row.push(p); sum += p.ar; if (sum * H + gap * (row.length - 1) >= W) flush(false); });
+  flush(true); return out;
+}
+
+/* ===================== render: library ===================== */
+const groupsEl = $('#groups');
+function renderLibrary() {
+  const { sc, groups, items } = compute();
+  const title = $('#libTitle');
+  title.innerHTML = sc.album || state.scope.type !== 'all' ? `${esc(sc.name)} <button class="chip-x" id="clearScope">${state.scope.type === 'album' ? '相册' : sc.rule ? esc(sc.rule) : '筛选'} ${ic('x')}</button>` : '全部照片';
+  const mb = items.reduce((s, p) => s + p.mb, 0);
+  const first = items.length ? new Date(Math.min(...items.map(p => p.ts))) : null, last = items.length ? new Date(Math.max(...items.map(p => p.ts))) : null;
+  $('#libMeta').textContent = items.length ? `${items.length} 张照片 · ${fmtMB(mb)} · ${fmtShort(first)} – ${fmtShort(last)}` : '没有符合条件的照片';
+  const W = groupsEl.clientWidth || 800, gap = innerWidth <= 860 ? 3 : 6, H = innerWidth <= 860 ? Math.min(state.rowH, 150) : state.rowH;
+  if (!items.length) { groupsEl.innerHTML = `<div class="empty">没有符合条件的照片。试试清除筛选或换个关键词。</div>`; renderScrubber([]); return; }
+  groupsEl.innerHTML = groups.map((g, gi) => {
+    const tiles = justify(g.items, W, H, gap).map(({ p, w, h }) => `<div class="tile${state.sel.has(p.id) ? ' sel' : ''}" data-id="${p.id}" style="width:${w}px;height:${h}px" role="button" tabindex="0" aria-label="${esc(p.title)}，${esc(p.place)}">
+        <img src="${p.thumb}" alt="" loading="lazy" decoding="async">
+        <div class="tile-ov"><span class="t-loc">${esc(p.place)} · ${p.camShort}</span><span class="t-exif">${exifLine(p)}</span></div>
+        ${p.fav ? `<span class="t-fav">${ic('heart')}</span>` : ''}<span class="t-check">${ic('check')}</span></div>`).join('');
+    const head = g.label ? `<div class="g-head"><h3>${esc(g.label)}</h3><span class="sub">${esc(g.sub || '')}</span><span class="cnt mono">${g.items.length} 张</span><button class="g-sel" data-g="${gi}">选择本组</button></div>` : '';
+    return `<section class="group" data-gk="${g.key}">${head}<div class="grid">${tiles}</div></section>`;
+  }).join('');
+  groupsEl._groups = groups;
+  renderScrubber(state.group === 'month' ? groups : []);
+  $('#dirBtn').innerHTML = ic(state.dir < 0 ? 'down' : 'up') + `<span class="lbl">${state.dir < 0 ? '降序' : '升序'}</span>`;
+  const fc = state.f.cams.size + (state.f.minRating ? 1 : 0) + (state.f.focal ? 1 : 0) + (state.f.orient ? 1 : 0);
+  const fb = $('#filterBtn'); fb.innerHTML = ic('filter') + `<span class="lbl">筛选</span>` + (fc ? `<span class="badge">${fc}</span>` : ''); fb.classList.toggle('on', state.showFilters || fc > 0);
+  const sb = $('#selBtn'); sb.innerHTML = ic('checksq') + `<span class="lbl">${state.selecting ? '完成' : '选择'}</span>`; sb.classList.toggle('on', state.selecting);
+  renderSide();
+}
+function renderScrubber(groups) {
+  const el = $('#scrubber');
+  if (!groups.length) { el.innerHTML = ''; return; }
+  let html = '', y = null;
+  groups.forEach(g => { if (g.y !== y) { y = g.y; html += `<span class="yr" data-gk="${g.key}">${String(y).slice(2)}′</span>`; } html += `<span class="mo" data-gk="${g.key}" data-l="${g.label} · ${g.items.length} 张"></span>`; });
+  el.innerHTML = html; syncScrubber();
+}
+function syncScrubber() {
+  const lib = $('#view-library'), secs = groupsEl.querySelectorAll('.group'); let cur = null;
+  const top = lib.getBoundingClientRect().top + 120;
+  secs.forEach(s => { if (s.getBoundingClientRect().top <= top) cur = s.dataset.gk; });
+  if (!cur && secs[0]) cur = secs[0].dataset.gk;
+  document.querySelectorAll('#scrubber .mo').forEach(m => m.classList.toggle('on', m.dataset.gk === cur));
+}
+function renderFilters() {
+  const el = $('#filters'); el.hidden = !state.showFilters; if (!state.showFilters) return;
+  const f = state.f, cams = Object.entries(CAMS);
+  el.innerHTML = `
+    <div class="f-row"><span>相机</span>${cams.map(([k, c]) => `<button class="pill" data-cam="${k}" aria-pressed="${f.cams.has(k)}">${c.short}</button>`).join('')}</div>
+    <div class="f-row"><span>评分</span>${[0, 3, 4, 5].map(n => `<button class="pill" data-rate="${n}" aria-pressed="${f.minRating === n}">${n ? '★'.repeat(n) + (n < 5 ? ' 以上' : '') : '不限'}</button>`).join('')}</div>
+    <div class="f-row"><span>焦段</span>${[['w', '广角 ≤24'], ['n', '标准 25–70'], ['t', '长焦 >70']].map(([k, l]) => `<button class="pill" data-focal="${k}" aria-pressed="${f.focal === k}">${l}</button>`).join('')}</div>
+    <div class="f-row"><span>画幅</span>${[['l', '横'], ['p', '竖'], ['s', '方'], ['x', '全景']].map(([k, l]) => `<button class="pill" data-orient="${k}" aria-pressed="${f.orient === k}">${l}</button>`).join('')}</div>`;
+}
+
+/* ===================== sidebar ===================== */
+function renderSide() {
+  const s = state.scope, cur = (t, k) => s.type === t && (k === undefined || s.key === k);
+  const cnt = fn => PHOTOS.filter(fn).length, total = PHOTOS.reduce((a, p) => a + p.mb, 0);
+  const lens = {}; PHOTOS.forEach(p => lens[p.focal] = (lens[p.focal] || 0) + 1);
+  const topF = Object.entries(lens).sort((a, b) => b[1] - a[1])[0][0];
+  $('#sidebar').innerHTML = `
+    <div class="side-group"><h4>图库</h4>
+      <button class="side-item" data-scope="all" aria-current="${cur('all')}">${ic('grid')}全部照片<span class="n">${PHOTOS.length}</span></button>
+      <button class="side-item" data-scope="fav" aria-current="${cur('fav')}">${ic('heart')}收藏<span class="n">${cnt(p => p.fav)}</span></button>
+      <button class="side-item" data-scope="recent" aria-current="${cur('recent')}">${ic('clock')}最近导入<span class="n">${cnt(p => p.trip === 'iceland')}</span></button>
+    </div>
+    <div class="side-group"><h4>智能相册</h4>
+      ${SMART.map(m => `<button class="side-item" data-scope="smart" data-key="${m.key}" aria-current="${cur('smart', m.key)}">${ic(m.icon)}${m.name}<span class="n">${cnt(m.fn)}</span></button>`).join('')}
+    </div>
+    <div class="side-group"><h4>相册</h4>
+      ${TRIPS.map(t => `<button class="side-item" data-scope="album" data-key="${t.key}" aria-current="${cur('album', t.key)}"><i class="dot" style="background:${t.color}"></i>${t.name}<span class="n">${t.ids.length}</span></button>`).join('')}
+    </div>
+    <div class="side-group"><h4>文件夹</h4>
+      <div class="folder"><span class="p">D:\\Photos</span><span class="s"><i class="pulse"></i>监听中 · 自动导入新照片</span></div>
+      <div class="folder"><span class="p">E:\\Backup\\Camera</span><span class="s">上次扫描 今天 09:12</span></div>
+    </div>
+    <div class="side-stats"><span><b>${PHOTOS.length}</b> 张 · <b>${fmtMB(total)}</b> · 已建立索引</span><span>最常用焦距 <b>${topF}mm</b> · ${Object.keys(CAMS).length} 台设备</span><span>数据为原型示例</span></div>`;
+}
+
+/* ===================== selection ===================== */
+function updateSelbar() {
+  const bar = $('#selbar'); document.body.classList.toggle('selecting', state.selecting);
+  if (!state.selecting) { bar.hidden = true; return; }
+  const ids = [...state.sel], mb = ids.reduce((s, i) => s + byId(i).mb, 0);
+  bar.hidden = false;
+  bar.innerHTML = `<span class="info">已选 <b>${ids.length}</b> 张 · ${fmtMB(mb)}</span>
+    <button id="sbAll">${ic('checksq')}<span class="lbl">全选</span></button>
+    <button id="sbShow" ${ids.length ? '' : 'disabled'}>${ic('frame')}<span class="lbl">布展</span></button>
+    <button id="sbPack" class="primary" ${ids.length ? '' : 'disabled'}>${ic('pkg')}打包导出</button>
+    <button id="sbX" aria-label="退出选择">${ic('x')}</button>`;
+}
+function toggleSel(id, shift) {
+  const L = state.list.map(p => p.id);
+  if (shift && state.lastClick != null) {
+    const a = L.indexOf(state.lastClick), b = L.indexOf(id);
+    if (a > -1 && b > -1) { const [s, e] = a < b ? [a, b] : [b, a]; for (let i = s; i <= e; i++) state.sel.add(L[i]); }
+  } else state.sel.has(id) ? state.sel.delete(id) : state.sel.add(id);
+  state.lastClick = id;
+  groupsEl.querySelectorAll('.tile').forEach(t => t.classList.toggle('sel', state.sel.has(+t.dataset.id)));
+  updateSelbar();
+}
+function setSelecting(on) { state.selecting = on; if (!on) { state.sel.clear(); state.lastClick = null; } renderLibrary(); updateSelbar(); }
+
+/* ===================== viewer ===================== */
+const viewer = $('#viewer');
+function openViewer(id, list) {
+  state.vList = list || state.list; state.vIdx = state.vList.findIndex(p => p.id === id);
+  viewer.hidden = false; if (innerWidth <= 860) state.vInfo = false;
+  drawViewer(); document.addEventListener('keydown', vKeys);
+}
+function closeViewer() { viewer.hidden = true; document.removeEventListener('keydown', vKeys); }
+function fullOf(p) { if (!p.full) p.full = render(p, 1800).toDataURL('image/jpeg', .9); return p.full; }
+function drawViewer() {
+  const L = state.vList, p = L[state.vIdx];
+  viewer.classList.toggle('noinfo', !state.vInfo);
+  viewer.innerHTML = `
+    <div class="v-stage">
+      <div class="v-top">
+        <button class="v-btn" data-v="close" aria-label="关闭">${ic('x')}</button>
+        <span class="ix">${state.vIdx + 1} / ${L.length}</span>
+        <span style="flex:1"></span>
+        <button class="v-btn ${p.fav ? 'on' : ''}" data-v="fav" aria-label="收藏">${ic('heart', 'fill')}</button>
+        <button class="v-btn" data-v="show" aria-label="放映">${ic('play')}</button>
+        <button class="v-btn info-toggle-d ${state.vInfo ? 'on' : ''}" data-v="info" aria-label="信息">${ic('info')}</button>
+        <button class="v-btn info-toggle-m ${state.vInfo ? 'on' : ''}" data-v="info" aria-label="信息">${ic('info')}</button>
+      </div>
+      <div class="v-img" id="vImgBox">
+        <img id="vImg" src="${p.full || p.thumb}" alt="${esc(p.title)}">
+        <button class="v-nav l" data-v="prev" aria-label="上一张">${ic('left')}</button>
+        <button class="v-nav r" data-v="next" aria-label="下一张">${ic('right')}</button>
+      </div>
+      <div class="v-strip" id="vStrip">${L.map((q, i) => `<img src="${q.thumb}" data-i="${i}" class="${i === state.vIdx ? 'on' : ''}" alt="">`).join('')}</div>
+    </div>
+    <aside class="v-info">${infoHTML(p)}</aside>`;
+  if (!p.full) setTimeout(() => { const src = fullOf(p); const im = $('#vImg'); if (im && L[state.vIdx] === p) im.src = src; }, 30);
+  const on = $('#vStrip img.on'); on && on.scrollIntoView({ inline: 'center', block: 'nearest' });
+  drawHist(p);
+  [1, -1].forEach(o => { const q = L[state.vIdx + o]; if (q && !q.full) setTimeout(() => fullOf(q), 400); });
+}
+function infoHTML(p) {
+  const sw = palette(p);
+  return `
+    <div><h2>${esc(p.title)}</h2><div class="when">${esc(p.place)} · ${esc(p.tripName)}<br>${fmtDate(p.date)}</div></div>
+    <div class="v-sec"><div class="stars" role="group" aria-label="评分">${[1, 2, 3, 4, 5].map(n => `<button data-star="${n}" class="${n <= p.rating ? 'on' : ''}" aria-label="${n} 星">${ic('star')}</button>`).join('')}</div></div>
+    <div class="v-sec"><h5>拍摄参数</h5>
+      <div class="exif-card"><div class="cam"><b>${esc(p.camName)}</b><span>${esc(p.lens)}</span></div>
+      <div class="exif-cells"><div><b>${p.focal}mm</b><span>焦距</span></div><div><b>f/${p.ap}</b><span>光圈</span></div><div><b>${p.shutter}</b><span>快门</span></div><div><b>${p.iso}</b><span>ISO</span></div></div></div>
+    </div>
+    <div class="v-sec"><h5>直方图</h5><canvas class="hist" id="hist" width="600" height="148"></canvas></div>
+    <div class="v-sec"><h5>主色</h5><div class="swatches">${sw.map(c => `<div><i style="background:${c}"></i><span>${c}</span></div>`).join('')}</div></div>
+    <div class="v-sec"><h5>文件</h5><dl class="kv">
+      <dt>文件名</dt><dd>${p.file}</dd><dt>尺寸</dt><dd>${p.W} × ${p.H} · ${p.mp.toFixed(1)}MP</dd>
+      <dt>大小</dt><dd>${fmtMB(p.mb)}</dd><dt>位置</dt><dd>${fmtGPS(p.lat, p.lon)}</dd><dt>路径</dt><dd>${esc(p.path)}</dd></dl></div>
+    <div class="v-sec"><h5>标签</h5><div class="tags">${p.tags.map(t => `<span>${esc(t)}</span>`).join('')}</div></div>`;
+}
+function drawHist(p) {
+  const c = $('#hist'); if (!c) return;
+  const ctx = c.getContext('2d'), d = p.cv.getContext('2d').getImageData(0, 0, p.cv.width, p.cv.height).data, B = 96;
+  const ch = [new Array(B).fill(0), new Array(B).fill(0), new Array(B).fill(0)];
+  for (let i = 0; i < d.length; i += 16) for (let k = 0; k < 3; k++) ch[k][Math.min(B - 1, d[i + k] * B >> 8)]++;
+  const mx = Math.max(...ch.flat()) * .9; ctx.clearRect(0, 0, c.width, c.height); ctx.globalCompositeOperation = 'lighter';
+  ['rgba(230,80,70,.55)', 'rgba(90,200,110,.5)', 'rgba(80,130,240,.6)'].forEach((col, k) => {
+    ctx.beginPath(); ctx.moveTo(0, c.height);
+    ch[k].forEach((v, i) => ctx.lineTo(i / (B - 1) * c.width, c.height - Math.min(1, v / mx) * (c.height - 6)));
+    ctx.lineTo(c.width, c.height); ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+  });
+  ctx.globalCompositeOperation = 'source-over';
+}
+function palette(p) {
+  if (p.pal) return p.pal;
+  const s = document.createElement('canvas'); s.width = s.height = 40; const x = s.getContext('2d'); x.drawImage(p.cv, 0, 0, 40, 40);
+  const d = x.getImageData(0, 0, 40, 40).data, b = new Map();
+  for (let i = 0; i < d.length; i += 4) { const k = (d[i] >> 5) << 6 | (d[i + 1] >> 5) << 3 | (d[i + 2] >> 5); const e = b.get(k) || [0, 0, 0, 0]; e[0] += d[i]; e[1] += d[i + 1]; e[2] += d[i + 2]; e[3]++; b.set(k, e); }
+  const cols = [...b.values()].sort((a, c) => c[3] - a[3]).map(e => [e[0] / e[3], e[1] / e[3], e[2] / e[3]]), out = [];
+  for (const c of cols) { if (out.every(o => Math.hypot(o[0] - c[0], o[1] - c[1], o[2] - c[2]) > 48)) out.push(c); if (out.length === 5) break; }
+  return p.pal = out.map(c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join(''));
+}
+function vStep(o) { const n = state.vIdx + o; if (n < 0 || n >= state.vList.length) return; state.vIdx = n; drawViewer(); }
+function vKeys(e) {
+  if (!$('#modal').hidden || !$('#ss').hidden) return;
+  if (e.key === 'Escape') closeViewer(); else if (e.key === 'ArrowRight') vStep(1); else if (e.key === 'ArrowLeft') vStep(-1);
+  else if (e.key === 'i') { state.vInfo = !state.vInfo; drawViewer(); }
+  else if (/^[0-5]$/.test(e.key)) { state.vList[state.vIdx].rating = +e.key; drawViewer(); }
+}
+viewer.addEventListener('click', e => {
+  const b = e.target.closest('[data-v],[data-i],[data-star]'); if (!b) return;
+  const p = state.vList[state.vIdx];
+  if (b.dataset.i != null) { state.vIdx = +b.dataset.i; return drawViewer(); }
+  if (b.dataset.star) { p.rating = +b.dataset.star === p.rating ? 0 : +b.dataset.star; return drawViewer(); }
+  const a = b.dataset.v;
+  if (a === 'close') closeViewer(); else if (a === 'prev') vStep(-1); else if (a === 'next') vStep(1);
+  else if (a === 'info') { state.vInfo = !state.vInfo; drawViewer(); }
+  else if (a === 'fav') { p.fav = !p.fav; drawViewer(); toast(p.fav ? '已加入收藏' : '已取消收藏'); }
+  else if (a === 'show') slideshow(state.vList.map(q => q.id), state.vIdx, '');
+});
+let tx = null;
+viewer.addEventListener('touchstart', e => { if (e.target.closest('#vImgBox')) tx = e.touches[0].clientX; }, { passive: true });
+viewer.addEventListener('touchend', e => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; tx = null; if (Math.abs(dx) > 50) vStep(dx < 0 ? 1 : -1); });
+
+/* ===================== albums ===================== */
+function renderAlbums() {
+  const el = $('#view-albums');
+  el.innerHTML = `
+    <div class="sec-head"><h2>相册</h2><p>按拍摄时间和地点自动整理成 ${TRIPS.length} 段旅程</p></div>
+    <div class="album-grid">${TRIPS.map(t => {
+      const ps = t.ids.map(byId).sort((a, b) => b.rating - a.rating || (b.ar >= 1) - (a.ar >= 1)), ts = ps.map(p => p.ts), cams = [...new Set(ps.map(p => p.camShort))];
+      return `<button class="album" data-album="${t.key}"><div class="cover">${ps.slice(0, 3).map(p => `<img src="${p.thumb}" alt="">`).join('')}</div>
+        <div class="t"><b>${t.name}</b><span>${t.ids.length} 张</span></div>
+        <div class="m">${fmtShort(new Date(Math.min(...ts)))} · ${cams.join(' / ')}</div></button>`;
+    }).join('')}</div>
+    <div class="sec-head"><h2>智能相册</h2><p>按规则自动收录，新导入的照片符合条件就会出现在这里</p></div>
+    <div class="smart-grid">${SMART.map(m => { const ps = PHOTOS.filter(m.fn); return `<button class="smart" data-smart="${m.key}"><img src="${ps[0].thumb}" alt=""><div><b>${m.name}</b><code>${esc(m.rule)}</code><div class="n">${ps.length} 张</div></div></button>`; }).join('')}
+      <button class="smart" id="newSmart"><span style="width:56px;height:56px;border-radius:6px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted)">${ic('plus')}</span><div><b>新建智能相册</b><div class="n">用相机、焦距、评分、地点等条件组合</div></div></button>
+    </div>`;
+}
+
+/* ===================== showcase ===================== */
+const EXHIBITS = [
+  { key: 'iceland', title: '北境', en: 'Notes from the North', trip: 'iceland', words: '九月的冰岛，夜里十一点天才完全黑下来。极光出现之前，风先停了。这组照片拍在维克和冰河湖之间的五个夜晚，大多是三脚架上十几秒的长曝光。' },
+  { key: 'dunhuang', title: '沙与光', en: 'Sand & Light', trip: 'dunhuang', words: '鸣沙山的沙脊只在日出后一小时和日落前一小时有清楚的明暗分界。其余时间，沙漠是平的。' },
+  { key: 'tokyo', title: '夜行东京', en: 'Tokyo After Dark', trip: 'tokyo', words: '二月，从新宿走到浅草。用 GR 揣在口袋里，看到灯就停下来拍一张。' },
+  { key: 'kyoto', title: '京都四月', en: 'Kyoto in April', trip: 'kyoto', words: '岚山的雾在上午九点前散去。之后的京都，属于游客。' },
+];
+const SC_STYLES = [['wall', '美术馆'], ['hall', '暗厅'], ['film', '胶片'], ['polaroid', '拍立得']];
+function exPhotos(ex) { return ex.ids ? ex.ids.map(byId) : tripOf(ex.trip).ids.map(byId).filter(p => p.rating >= 3).sort((a, b) => a.ts - b.ts).slice(0, 8); }
+function renderShowcase() {
+  const ex = EXHIBITS[state.ex], ps = exPhotos(ex), sc = $('#view-showcase');
+  sc.dataset.style = state.scStyle;
+  $('#scEx').innerHTML = EXHIBITS.map((e, i) => `<button data-ex="${i}" aria-pressed="${i === state.ex}">${esc(e.title)}</button>`).join('');
+  $('#scStyle').innerHTML = SC_STYLES.map(([k, l]) => `<button data-st="${k}" aria-pressed="${k === state.scStyle}">${l}</button>`).join('');
+  $('#scPlay').innerHTML = ic('play') + '放映';
+  const span = ps.length ? `${fmtShort(ps[0].date)} – ${fmtShort(ps[ps.length - 1].date).slice(5)}` : '';
+  const r = rng(ex.key.length * 97 + 3);
+  $('#scTrack').innerHTML = `<div class="sc-floor"></div>
+    <div class="intro"><span class="k">Exhibition · ${pad(state.ex + 1)}</span><h2>${esc(ex.title)}<em>${esc(ex.en)}</em></h2><p>${esc(ex.words)}</p>
+      <div class="meta">${ps.length} 件作品 · ${span}${ex.trip ? ' · ' + tripOf(ex.trip).name : ''}</div></div>
+    ${ps.map((p, i) => `<figure class="piece" data-id="${p.id}" style="--ar:${p.ar};--rot:${((r() - .5) * 7).toFixed(1)}deg">
+        <div class="spot"></div>
+        <div class="frame"><div class="mat"><img src="${p.full || p.thumb}" alt="${esc(p.title)}" draggable="false"></div><span class="edge">DREAMVIEW 400 ▸ ${i + 1}A</span><span class="hand">${esc(p.place)} · ${p.date.getMonth() + 1}.${p.date.getDate()}</span></div>
+        <figcaption class="plaque"><b>${esc(p.title)}</b><span>${esc(p.place)}，${p.date.getFullYear()}</span><span class="mono">${p.camShort} · ${exifLine(p)}</span></figcaption>
+      </figure>`).join('')}
+    <div class="outro"><b>展览结束</b><span>共 ${ps.length} 件作品。可以把这个展览导出成网页，发给朋友直接打开。</span><button class="sc-play" id="scPlay2">${ic('play')}从头放映</button></div>`;
+  const tr = $('#scTrack'); tr.scrollLeft = 0; scSync();
+  // upgrade showcase images to full resolution progressively
+  ps.forEach((p, i) => { if (!p.full) setTimeout(() => { const src = fullOf(p); const im = tr.querySelector(`.piece[data-id="${p.id}"] img`); if (im) im.src = src; }, 120 + i * 60); });
+}
+function scPieces() { return [...$('#scTrack').querySelectorAll('.piece')]; }
+function scCurrent() { const tr = $('#scTrack'), mid = tr.getBoundingClientRect().left + tr.clientWidth / 2; let best = 0, bd = 1e9; scPieces().forEach((el, i) => { const b = el.getBoundingClientRect(), d = Math.abs(b.left + b.width / 2 - mid); if (d < bd) { bd = d; best = i; } }); return best; }
+function scSync() { const n = scPieces().length, tr = $('#scTrack'); const c = tr.scrollLeft < 40 ? 0 : scCurrent() + 1; $('#scCount').textContent = `${c} / ${n}`; const max = tr.scrollWidth - tr.clientWidth; $('#scProg').style.width = (max > 0 ? tr.scrollLeft / max * 100 : 0) + '%'; }
+function scGo(o) { const ps = scPieces(), tr = $('#scTrack'); let i = tr.scrollLeft < 40 ? (o > 0 ? 0 : -1) : scCurrent() + o; if (i < 0) { tr.scrollTo({ left: 0 }); return; } i = Math.min(ps.length - 1, i); const el = ps[i]; tr.scrollTo({ left: el.offsetLeft + el.offsetWidth / 2 - tr.clientWidth / 2 }); }
+(function scDrag() {
+  const tr = $('#scTrack'); let down = false, sx = 0, sl = 0, moved = false;
+  tr.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') return; down = true; moved = false; sx = e.clientX; sl = tr.scrollLeft; });
+  addEventListener('pointermove', e => { if (!down) return; const dx = e.clientX - sx; if (Math.abs(dx) > 4) { moved = true; tr.classList.add('drag'); } tr.scrollLeft = sl - dx; });
+  addEventListener('pointerup', () => { down = false; tr.classList.remove('drag'); });
+  tr.addEventListener('click', e => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; return; } const pc = e.target.closest('.piece'); if (pc) openViewer(+pc.dataset.id, exPhotos(EXHIBITS[state.ex])); if (e.target.closest('#scPlay2')) startExShow(); }, true);
+  tr.addEventListener('wheel', e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { tr.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+  tr.addEventListener('scroll', () => requestAnimationFrame(scSync));
+})();
+function startExShow() { const ex = EXHIBITS[state.ex]; slideshow(exPhotos(ex).map(p => p.id), 0, ex.title); }
+
+/* ===================== slideshow ===================== */
+let ssT = null, ssState = null;
+function slideshow(ids, start, title) {
+  const ss = $('#ss'); ss.hidden = false; ssState = { ids, i: start, playing: true, title, layer: 0 };
+  ss.innerHTML = `<div class="ss-slide"><img alt=""></div><div class="ss-slide"><img alt=""></div><div class="ss-bar"><i id="ssBar"></i></div>
+    <div class="ss-cap" id="ssCap"></div>
+    <div class="ss-ctl"><button data-ss="prev" aria-label="上一张">${ic('left')}</button><button data-ss="play" id="ssPlay" aria-label="暂停">${ic('pause')}</button><button data-ss="next" aria-label="下一张">${ic('right')}</button><button data-ss="close" aria-label="退出放映">${ic('x')}</button></div>`;
+  ssShow(); document.addEventListener('keydown', ssKeys);
+}
+function ssShow() {
+  const s = ssState, p = byId(s.ids[s.i]), slides = $('#ss').querySelectorAll('.ss-slide');
+  s.layer ^= 1; const on = slides[s.layer], off = slides[s.layer ^ 1];
+  const img = on.querySelector('img'); img.src = fullOf(p);
+  const r = Math.random; on.style.setProperty('--ks', (1.08 + r() * .07).toFixed(3)); on.style.setProperty('--kx', ((r() - .5) * 4).toFixed(1) + '%'); on.style.setProperty('--ky', ((r() - .5) * 3).toFixed(1) + '%');
+  img.style.animation = 'none'; void img.offsetWidth; img.style.animation = '';
+  on.classList.add('on'); off.classList.remove('on');
+  $('#ssCap').innerHTML = `<b>${esc(p.title)}</b><span>${esc(p.place)} · ${fmtShort(p.date)} · ${p.camShort} ${exifLine(p)}</span>`;
+  $('#ssBar').style.width = ((s.i + 1) / s.ids.length * 100) + '%';
+  clearTimeout(ssT); if (s.playing) ssT = setTimeout(() => ssStep(1), 5500);
+}
+function ssStep(o) { const s = ssState; s.i = (s.i + o + s.ids.length) % s.ids.length; ssShow(); }
+function ssClose() { clearTimeout(ssT); $('#ss').hidden = true; $('#ss').innerHTML = ''; document.removeEventListener('keydown', ssKeys); }
+function ssKeys(e) { if (e.key === 'Escape') ssClose(); else if (e.key === 'ArrowRight') ssStep(1); else if (e.key === 'ArrowLeft') ssStep(-1); else if (e.key === ' ') { e.preventDefault(); ssToggle(); } }
+function ssToggle() { const s = ssState; s.playing = !s.playing; $('#ssPlay').innerHTML = ic(s.playing ? 'pause' : 'play'); if (s.playing) ssT = setTimeout(() => ssStep(1), 2500); else clearTimeout(ssT); }
+$('#ss').addEventListener('click', e => { const b = e.target.closest('[data-ss]'); if (!b) return; const a = b.dataset.ss; if (a === 'close') ssClose(); else if (a === 'next') ssStep(1); else if (a === 'prev') ssStep(-1); else ssToggle(); });
+
+/* ===================== modals ===================== */
+const modal = $('#modal');
+function openModal(html, onClick) { modal.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`; modal.hidden = false; modal.onclick = e => { if (e.target === modal || e.target.closest('[data-close]')) return closeModal(); onClick && onClick(e); }; }
+function closeModal() { modal.hidden = true; modal.innerHTML = ''; clearInterval(packT); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+let packT = null;
+const pack = { size: 'orig', fmt: 'keep', gps: true, folders: true, rename: true, tpl: '{日期}_{地点}_{序号}', wm: false, wmText: '© DreamView' };
+function packModal() {
+  const ids = [...state.sel].map(byId).sort((a, b) => a.ts - b.ts), mb = ids.reduce((s, p) => s + p.mb, 0);
+  const factor = { orig: 1, 4096: .09, 2048: .028 }[pack.size] * (pack.size === 'orig' && pack.fmt === 'jpg' ? .14 : 1);
+  const est = mb * factor;
+  const names = ids.slice(0, 3).map((p, i) => {
+    const ext = pack.fmt === 'jpg' || pack.size !== 'orig' ? 'jpg' : p.file.split('.').pop();
+    const base = pack.rename ? pack.tpl.replace('{日期}', `${p.date.getFullYear()}${pad(p.date.getMonth() + 1)}${pad(p.date.getDate())}`).replace('{地点}', p.place).replace('{序号}', pad(i + 1).padStart(3, '0')).replace('{相机}', p.camShort.replace(/\s/g, '')) : p.file.replace(/\.\w+$/, '');
+    return (pack.folders ? `${p.date.getFullYear()}-${pad(p.date.getMonth() + 1)}/` : '') + base + '.' + ext;
+  });
+  const sw = (k, t, s) => `<div class="sw-row"><div><b>${t}</b><span>${s}</span></div><button class="switch" role="switch" data-sw="${k}" aria-checked="${pack[k]}" aria-label="${t}"></button></div>`;
+  openModal(`
+    <h3>打包导出</h3><p class="lead">${ids.length} 张照片 · ${fmtShort(ids[0].date)} – ${fmtShort(ids[ids.length - 1].date)} · 原始大小 ${fmtMB(mb)}</p>
+    <div class="opt"><span class="lbl">尺寸</span><div class="segm">
+      ${[['orig', '原图', '保持原始分辨率'], ['4096', '长边 4096', '适合大屏'], ['2048', '长边 2048', '适合分享']].map(([k, b, s]) => `<button data-size="${k}" aria-pressed="${pack.size === k}"><b>${b}</b><span>${s}</span></button>`).join('')}
+    </div></div>
+    <div class="opt"><span class="lbl">格式</span><div class="segm">
+      <button data-fmt="keep" aria-pressed="${pack.fmt === 'keep'}"><b>保持原格式</b><span>RAF / ARW / HEIC…</span></button>
+      <button data-fmt="jpg" aria-pressed="${pack.fmt === 'jpg'}"><b>全部转 JPG</b><span>兼容所有设备</span></button>
+    </div></div>
+    <div>
+      ${sw('gps', '去除位置信息', '删除 GPS 坐标，分享更安全')}
+      ${sw('folders', '按月份建子文件夹', '例如 2025-09/')}
+      ${sw('rename', '批量重命名', '可用 {日期} {地点} {序号} {相机}')}
+      ${pack.rename ? `<input class="txt" id="tpl" value="${esc(pack.tpl)}" aria-label="命名模板">` : ''}
+      ${sw('wm', '添加水印', '右下角小号文字')}
+      ${pack.wm ? `<input class="txt" id="wmText" value="${esc(pack.wmText)}" aria-label="水印文字">` : ''}
+    </div>
+    <div class="opt"><span class="lbl">文件名预览</span><div class="preview-names">${names.map(n => `<span>${esc(n)}</span>`).join('')}${ids.length > 3 ? `<span>… 另外 ${ids.length - 3} 个</span>` : ''}</div></div>
+    <div class="m-foot"><span class="est">预计 <b>${fmtMB(est)}</b></span><button class="btn" data-close>取消</button><button class="btn primary" id="doPack">${ic('pkg')}开始打包</button></div>`,
+  e => {
+    const b = e.target.closest('[data-size],[data-fmt],[data-sw],#doPack'); if (!b) return;
+    if (b.id === 'doPack') return runPack(ids, est);
+    if (b.dataset.size) pack.size = b.dataset.size; if (b.dataset.fmt) pack.fmt = b.dataset.fmt; if (b.dataset.sw) pack[b.dataset.sw] = !pack[b.dataset.sw];
+    packModal();
+  });
+  const tpl = $('#tpl'); tpl && tpl.addEventListener('change', () => { pack.tpl = tpl.value || '{日期}_{序号}'; packModal(); });
+  const wt = $('#wmText'); wt && wt.addEventListener('change', () => { pack.wmText = wt.value; });
+}
+function runPack(ids, est) {
+  const d = new Date(), name = `DreamView_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${ids.length}张.zip`;
+  $('.modal').innerHTML = `<h3>正在打包</h3><p class="lead">${ids.length} 张照片 · 预计 ${fmtMB(est)}</p><div class="prog"><i id="pg"></i></div><div class="prog-file" id="pf"></div><div class="m-foot"><button class="btn" data-close>取消</button></div>`;
+  let i = 0; clearInterval(packT);
+  packT = setInterval(() => {
+    i++; $('#pg').style.width = (i / ids.length * 100) + '%'; $('#pf').textContent = `${pack.gps ? '去除位置信息 · ' : ''}${ids[Math.min(i, ids.length) - 1].file}`;
+    if (i >= ids.length) { clearInterval(packT); setTimeout(() => {
+      $('.modal').innerHTML = `<h3>打包完成</h3><div class="done"><b>${esc(name)}</b><span>${fmtMB(est)} · 已保存到 D:\\Exports</span></div><p class="note">原型演示：正式版会在这里提供“打开文件夹”，手机端则直接下载 zip。</p><div class="m-foot"><button class="btn primary" data-close>完成</button></div>`;
+    }, 250); }
+  }, Math.max(60, 1800 / ids.length));
+}
+function phoneModal() {
+  openModal(`
+    <h3>用手机访问</h3><p class="lead">手机和这台电脑连接同一个 Wi-Fi，扫码或在浏览器输入地址。</p>
+    <div class="lan"><canvas id="qr" width="150" height="150" aria-label="二维码示意"></canvas>
+      <div><div class="url">http://192.168.1.23:8848</div><p>访问码 <b class="mono">4 7 2 9</b> · 首次连接需要在电脑上确认</p><p class="note">原型示意，二维码不可扫描</p></div></div>
+    <div>
+      <div class="sw-row"><div><b>需要访问码</b><span>防止同一网络里的其他人打开</span></div><button class="switch" role="switch" aria-checked="true" aria-label="需要访问码" data-t></button></div>
+      <div class="sw-row"><div><b>允许手机上传</b><span>手机拍的照片可以直接传回电脑</span></div><button class="switch" role="switch" aria-checked="true" aria-label="允许手机上传" data-t></button></div>
+      <div class="sw-row"><div><b>只开放部分相册</b><span>比如只给家人看“大理”和“厦门”</span></div><button class="switch" role="switch" aria-checked="false" aria-label="只开放部分相册" data-t></button></div>
+    </div>
+    <div class="opt"><span class="lbl">已连接设备</span>
+      <div class="device">${ic('phone')} iPhone 15 · Safari<span>2 分钟前</span></div>
+      <div class="device">${ic('phone')} Xiaomi 14 · Chrome<span>昨天</span></div></div>
+    <div class="m-foot"><button class="btn primary" data-close>完成</button></div>`,
+  e => { const s = e.target.closest('[data-t]'); if (s) s.setAttribute('aria-checked', s.getAttribute('aria-checked') !== 'true'); });
+  const c = $('#qr'), x = c.getContext('2d'), N = 29, u = 150 / N, r = rng(8848);
+  x.fillStyle = '#fff'; x.fillRect(0, 0, 150, 150); x.fillStyle = '#111';
+  const finder = (cx, cy) => { x.fillRect(cx * u, cy * u, 7 * u, 7 * u); x.fillStyle = '#fff'; x.fillRect((cx + 1) * u, (cy + 1) * u, 5 * u, 5 * u); x.fillStyle = '#111'; x.fillRect((cx + 2) * u, (cy + 2) * u, 3 * u, 3 * u); };
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const inF = (i < 8 && j < 8) || (i > N - 9 && j < 8) || (i < 8 && j > N - 9); if (!inF && r() < .5) x.fillRect(i * u, j * u, u + .3, u + .3); }
+  finder(0, 0); finder(N - 7, 0); finder(0, N - 7);
+}
+
+/* ===================== toast ===================== */
+let toastT; function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2400); }
+
+/* ===================== views + chrome ===================== */
+const VIEWS = [['library', '图库', 'grid'], ['albums', '相册', 'album'], ['showcase', '陈列柜', 'frame']];
+function setView(v) {
+  state.view = v;
+  VIEWS.forEach(([k]) => $('#view-' + k).hidden = k !== v);
+  $('#tabs').innerHTML = VIEWS.map(([k, l, i]) => `<button class="tab" data-view="${k}" aria-current="${k === v}">${ic(i)}${l}</button>`).join('');
+  $('#tabbar').innerHTML = VIEWS.map(([k, l, i]) => `<button data-view="${k}" aria-current="${k === v}">${ic(i)}${l}</button>`).join('');
+  if (v === 'library') renderLibrary(); else if (v === 'albums') renderAlbums(); else renderShowcase();
+  if (v !== 'library' && state.selecting) setSelecting(false);
+}
+function closeDrawer() { $('#sidebar').classList.remove('open'); $('#backdrop').hidden = true; }
+function setScope(s) { state.scope = s; state.sel.clear(); closeDrawer(); if (state.view !== 'library') setView('library'); else renderLibrary(); $('#view-library').scrollTop = 0; }
+
+document.addEventListener('click', e => {
+  const t = e.target;
+  const v = t.closest('[data-view]'); if (v) return setView(v.dataset.view);
+  const sc = t.closest('[data-scope]'); if (sc) return setScope({ type: sc.dataset.scope, key: sc.dataset.key });
+  const al = t.closest('[data-album]'); if (al) return setScope({ type: 'album', key: al.dataset.album });
+  const sm = t.closest('[data-smart]'); if (sm) return setScope({ type: 'smart', key: sm.dataset.smart });
+  if (t.closest('#newSmart')) return toast('原型演示：这里会打开规则编辑器');
+  if (t.closest('#clearScope')) return setScope({ type: 'all' });
+  const tile = t.closest('.tile');
+  if (tile) { const id = +tile.dataset.id; return state.selecting ? toggleSel(id, e.shiftKey) : openViewer(id); }
+  const gs = t.closest('.g-sel');
+  if (gs) { const g = groupsEl._groups[+gs.dataset.g]; if (!state.selecting) { state.selecting = true; renderLibrary(); } const all = g.items.every(p => state.sel.has(p.id)); g.items.forEach(p => all ? state.sel.delete(p.id) : state.sel.add(p.id)); groupsEl.querySelectorAll('.tile').forEach(x => x.classList.toggle('sel', state.sel.has(+x.dataset.id))); return updateSelbar(); }
+  const mo = t.closest('#scrubber [data-gk]');
+  if (mo) { const s = groupsEl.querySelector(`.group[data-gk="${mo.dataset.gk}"]`); if (s) $('#view-library').scrollTo({ top: s.offsetTop - 70, behavior: 'smooth' }); return; }
+  const fp = t.closest('#filters .pill');
+  if (fp) { const f = state.f, d = fp.dataset;
+    if (d.cam) f.cams.has(d.cam) ? f.cams.delete(d.cam) : f.cams.add(d.cam);
+    if (d.rate) f.minRating = +d.rate; if (d.focal) f.focal = f.focal === d.focal ? null : d.focal; if (d.orient) f.orient = f.orient === d.orient ? null : d.orient;
+    renderFilters(); return renderLibrary(); }
+  if (t.closest('#filterBtn')) { state.showFilters = !state.showFilters; renderFilters(); return renderLibrary(); }
+  if (t.closest('#selBtn')) return setSelecting(!state.selecting);
+  if (t.closest('#sbX')) return setSelecting(false);
+  if (t.closest('#sbAll')) { state.list.forEach(p => state.sel.add(p.id)); groupsEl.querySelectorAll('.tile').forEach(x => x.classList.add('sel')); return updateSelbar(); }
+  if (t.closest('#sbPack')) return state.sel.size && packModal();
+  if (t.closest('#sbShow')) { if (!state.sel.size) return; const ids = [...state.sel].sort((a, b) => byId(a).ts - byId(b).ts); EXHIBITS.push({ key: 'new' + EXHIBITS.length, title: '新展览', en: 'Untitled', ids, words: `从图库挑选的 ${ids.length} 张照片。点击标题旁的编辑按钮可以写前言、调整顺序（原型暂未实现）。` }); state.ex = EXHIBITS.length - 1; setSelecting(false); setView('showcase'); return toast('已用所选照片创建展览'); }
+  const ex = t.closest('[data-ex]'); if (ex) { state.ex = +ex.dataset.ex; return renderShowcase(); }
+  const st = t.closest('[data-st]'); if (st) { state.scStyle = st.dataset.st; return renderShowcase(); }
+  if (t.closest('#scPlay')) return startExShow();
+  if (t.closest('#scPrev')) return scGo(-1);
+  if (t.closest('#scNext')) return scGo(1);
+  if (t.closest('#phoneBtn')) return phoneModal();
+  if (t.closest('#themeBtn')) { const root = document.documentElement, dark = getComputedStyle(root).colorScheme.includes('dark'); root.dataset.theme = dark ? 'light' : 'dark'; try { localStorage.setItem('dv-theme', root.dataset.theme); } catch (_) {} return paintTheme(); }
+  if (t.closest('#menuBtn')) { $('#sidebar').classList.add('open'); $('#backdrop').hidden = false; return; }
+  if (t.closest('#backdrop')) return closeDrawer();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.classList?.contains('tile')) e.target.click();
+  if (state.view === 'showcase' && viewer.hidden && modal.hidden && $('#ss').hidden) { if (e.key === 'ArrowRight') scGo(1); if (e.key === 'ArrowLeft') scGo(-1); }
+});
+$('#sortSel').addEventListener('change', e => { state.sort = e.target.value; state.dir = ['hue', 'camera', 'aperture'].includes(state.sort) ? 1 : -1; if (['hue', 'random', 'size', 'iso', 'aperture', 'focal'].includes(state.sort) && (state.group === 'month' || state.group === 'year')) { state.group = 'none'; $('#groupSel').value = 'none'; toast(state.sort === 'hue' ? '按色调排列时取消分组，照片会排成一道色带' : '已取消按时间分组'); } renderLibrary(); });
+$('#groupSel').addEventListener('change', e => { state.group = e.target.value; renderLibrary(); });
+$('#dirBtn').addEventListener('click', () => { state.dir *= -1; renderLibrary(); });
+$('#density').addEventListener('input', e => { state.rowH = +e.target.value; renderLibrary(); });
+let qT; $('#q').addEventListener('input', e => { clearTimeout(qT); qT = setTimeout(() => { state.q = e.target.value; if (state.view !== 'library') setView('library'); else renderLibrary(); }, 140); });
+$('#view-library').addEventListener('scroll', () => requestAnimationFrame(syncScrubber));
+let rzW = 0; new ResizeObserver(() => { const w = groupsEl.clientWidth; if (w && w !== rzW) { rzW = w; if (state.view === 'library') renderLibrary(); } }).observe(groupsEl);
+
+function paintTheme() { const dark = getComputedStyle(document.documentElement).colorScheme.includes('dark'); $('#themeBtn').innerHTML = ic(dark ? 'sun' : 'moon'); }
+try { const t = localStorage.getItem('dv-theme'); if (t) document.documentElement.dataset.theme = t; } catch (_) {}
+$('#menuBtn').innerHTML = ic('menu');
+$('#phoneBtn').innerHTML = ic('phone') + '<span class="lbl">手机访问</span>';
+$('.search').insertAdjacentHTML('afterbegin', ic('search'));
+paintTheme(); setView('library');
+</script>
